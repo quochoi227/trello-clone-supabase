@@ -21,14 +21,15 @@ export function KanbanCard({ card, isOverlay = false }: KanbanCardProps) {
     transition,
     isDragging,
   } = useSortable({
-    id: card._id,
-    data: card,
+    id: card.id,
+    data: {...card},
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1
+    opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none'
   };
 
   const shouldShowCardActions: boolean =
@@ -91,7 +92,7 @@ export function KanbanCard({ card, isOverlay = false }: KanbanCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className={cn("bg-background rounded-[8px] shadow-[0px_1px_1px_#1E1F2140]", card?.FE_PlaceholderCard ? "hidden" : "block")}
+      className={cn({ "hidden": card?.FE_PlaceholderCard }, "bg-background rounded-[8px] shadow-[0px_1px_1px_#1E1F2140]")}
     >
       <CardContent />
     </Card>

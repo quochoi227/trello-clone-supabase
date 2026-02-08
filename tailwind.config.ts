@@ -1,4 +1,7 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+import tailwindcssTypography from "@tailwindcss/typography";
+import plugin from "tailwindcss/plugin";
 
 export default {
   darkMode: ["class"],
@@ -59,5 +62,29 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    tailwindcssAnimate,
+    tailwindcssTypography,
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        ".scrollbar-hide": {
+          /* IE and Edge */
+          "-ms-overflow-style": "none",
+          /* Firefox */
+          "scrollbar-width": "none",
+          /* Safari and Chrome */
+          "&::-webkit-scrollbar": {
+            display: "none",
+          },
+        },
+        ".scrollbar-default": {
+          "-ms-overflow-style": "auto",
+          "scrollbar-width": "auto",
+          "&::-webkit-scrollbar": {
+            display: "block",
+          },
+        },
+      });
+    }),
+  ],
 } satisfies Config;

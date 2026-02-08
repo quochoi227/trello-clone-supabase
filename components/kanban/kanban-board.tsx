@@ -25,9 +25,13 @@ import { KanbanColumn } from "./kanban-column";
 import { MouseSensor, TouchSensor } from "@/lib/custom-lib/DndKitSensors";
 import { cloneDeep, isEmpty } from "lodash";
 import { generatePlaceholderCard } from "@/utils/formatters";
+import { updateBoard } from "@/actions/board-actions";
+import { moveCardToDifferentColumnAction } from "@/actions/card-actions";
+import { useBoardStore } from "@/stores/board-store";
+import { updateColumn } from "@/actions/column-action";
 
 export interface Card {
-  _id: string;
+  id: string;
   boardId: string;
   columnId: string;
   title?: string;
@@ -40,7 +44,7 @@ export interface Card {
 }
 
 export interface Column {
-  _id: string;
+  id: string;
   boardId: string;
   title: string;
   cardOrderIds: string[];
@@ -48,7 +52,7 @@ export interface Column {
 }
 
 export interface Board {
-  _id: string;
+  id: string;
   title: string;
   description: string;
   type: string;
@@ -71,6 +75,8 @@ type ActiveDragItemType = typeof ACTIVE_DRAG_ITEM_TYPE[keyof typeof ACTIVE_DRAG_
 
 
 export function KanbanBoard({ initialData }: KanbanBoardProps) {
+  const { setCurrentActiveBoard, currentActiveBoard } = useBoardStore()
+
   const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 10 } })
   // Yêu cầu chạm và giữ 250ms và dung sai 5px thì hiệu ứng mới được kích hoạt
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 50 } })
@@ -79,7 +85,8 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
   // const sensors = useSensors(pointerSensor)
   const sensors = useSensors(mouseSensor, touchSensor)
 
-  const [board] = useState<Board>(initialData);
+  const board = currentActiveBoard
+
   const [orderedColumns, setOrderedColumns] = useState<Column[]>([])
   const [activeDragItemId, setActiveDragItemId] = useState<UniqueIdentifier | null>(null)
   const [activeDragItemType, setActiveDragItemType] = useState<ActiveDragItemType>(null)
@@ -88,12 +95,16 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
   const lastOverId = useRef<UniqueIdentifier | null>(null)
 
   useEffect(() => {
-    // Column đã được sắp xếp ở component cao nhất (_id.jsx) nên chỉ cần set thẳng, không cần sắp xếp lại
-    setOrderedColumns(board.columns)
+    setCurrentActiveBoard(initialData)
+  }, [])
+
+  useEffect(() => {
+    // Column đã được sắp xếp ở component cao nhất (id.jsx) nên chỉ cần set thẳng, không cần sắp xếp lại
+    setOrderedColumns(board?.columns || [])
   }, [board])
 
   const findColumnByCardId = (cardId: UniqueIdentifier): Column | undefined => {
-    return orderedColumns.find((column) => column.cards.map((card) => card._id).includes(cardId as string))
+    return orderedColumns.find((column) => column.cards.map((card) => card.id).includes(cardId as string))
   }
 
   const moveCardBetweenDifferentColumns = (
@@ -110,7 +121,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     
     setOrderedColumns((prevColumns) => {
       // tìm vị trí của active card sắp được thả
-      const overCardIndex = overColumn.cards.findIndex((card) => card._id === overCardId)
+      const overCardIndex = overColumn.cards.findIndex((card) => card.id === overCardId)
 
       // đây là logic tính "cardIndex mới" (trên hoặc dưới của overCard) lấy chuẩn ra từ code của thư viện
       const isBelowOverItem =
@@ -121,11 +132,11 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
       const newCardIndex = overCardIndex >= 0 ? overCardIndex + modifier : overColumn.cards.length + 1
       // clone mảng orderedColumns ra 1 mảng mới
       nextColumns = cloneDeep(prevColumns)
-      const nextActiveColumn = nextColumns.find((column) => column._id === activeColumn._id)
-      const nextOverColumn = nextColumns.find((column) => column._id === overColumn._id)
+      const nextActiveColumn = nextColumns.find((column) => column.id === activeColumn.id)
+      const nextOverColumn = nextColumns.find((column) => column.id === overColumn.id)
       if (nextActiveColumn) {
         // xóa card ra khỏi active column
-        nextActiveColumn.cards = nextActiveColumn.cards.filter((card) => card._id !== activeDraggingCardId)
+        nextActiveColumn.cards = nextActiveColumn.cards.filter((card) => card.id !== activeDraggingCardId)
 
         nextActiveColumn.cards = nextActiveColumn.cards.filter((card) => !card.FE_PlaceholderCard)
         if (isEmpty(nextActiveColumn.cards)) {
@@ -133,16 +144,16 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
         }
 
         // cập nhật lại mảng cardsOrderIds
-        nextActiveColumn.cardOrderIds = nextActiveColumn.cards.map((card) => card._id)
+        nextActiveColumn.cardOrderIds = nextActiveColumn.cards.map((card) => card.id)
       }
 
       if (nextOverColumn) {
         // kiểm tra xem card đang kéo có tồn tại trong overColumn hay chưa, nếu có thì cần phải xóa nó trước
-        nextOverColumn.cards = nextOverColumn.cards.filter((card) => card._id !== activeDraggingCardId)
+        nextOverColumn.cards = nextOverColumn.cards.filter((card) => card.id !== activeDraggingCardId)
         // đối với trường hợp dragEnd thì phải cập nhật lại chuẩn dữ liệu columnId trong card sau khi kéo giữa 2 columns khác nhau
         const rebuild_activeDraggingCardData = {
           ...activeDraggingCardData,
-          columnId: nextOverColumn._id
+          columnId: nextOverColumn.id
         }
         // thêm card đang kéo vào overColumn theo index mới
         nextOverColumn.cards.splice(
@@ -152,7 +163,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
         )
 
         // cập nhật lại mảng cardsOrderIds
-        nextOverColumn.cardOrderIds = nextOverColumn.cards.map((card) => card._id)
+        nextOverColumn.cardOrderIds = nextOverColumn.cards.map((card) => card.id)
       }
 
       return nextColumns
@@ -160,8 +171,8 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     
     // Nếu func này được gọi từ handleDragEnd thì mới xử lý gọi API
     if (triggerFrom === 'handleDragEnd') {
-      // Gọi lên hàm moveCardToDifferentColumn ở component cha cao nhất (_id.jsx)
-      moveCardToDifferentColumn(activeDraggingCardId, oldColumn?._id, overColumn._id, nextColumns)
+      // Gọi lên hàm moveCardToDifferentColumn ở component cha cao nhất (id.jsx)
+      moveCardToDifferentColumn(activeDraggingCardId, oldColumn?.id, overColumn.id, nextColumns)
     }
   }
 
@@ -174,70 +185,6 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
       setOldColumn(findColumnByCardId(event?.active?.id) ?? null)
     }
   }
-
-  // const handleDragOver = (event: DragOverEvent) => {
-  //   const { active, over } = event;
-  //   if (!over) return;
-
-  //   const activeCardId = active.id as string;
-  //   const overId = over.id as string;
-
-  //   if (activeCardId === overId) return;
-
-  //   const activeColumn = board.columns.find((col) =>
-  //     col.cards.some((card) => card._id === activeCardId)
-  //   );
-  //   const overColumn = board.columns.find(
-  //     (col) =>
-  //       col._id === overId || col.cards.some((card) => card._id === overId)
-  //   );
-
-  //   if (!activeColumn || !overColumn) return;
-
-  //   if (activeColumn._id !== overColumn._id) {
-  //     setBoard((prev) => {
-  //       const newColumns = prev.columns.map((col) => {
-  //         if (col._id === activeColumn._id) {
-  //           return {
-  //             ...col,
-  //             cards: col.cards.filter((card) => card._id !== activeCardId),
-  //             cardOrderIds: col.cardOrderIds.filter((id) => id !== activeCardId),
-  //           };
-  //         }
-  //         if (col._id === overColumn._id) {
-  //           const overCardIndex = col.cards.findIndex(
-  //             (card) => card._id === overId
-  //           );
-  //           const activeCard = activeColumn.cards.find(
-  //             (card) => card._id === activeCardId
-  //           );
-  //           if (!activeCard) return col;
-
-  //           const updatedCard = { ...activeCard, columnId: col._id };
-  //           const newCards = [...col.cards];
-  //           const newCardOrderIds = [...col.cardOrderIds];
-
-  //           if (overCardIndex >= 0) {
-  //             newCards.splice(overCardIndex, 0, updatedCard);
-  //             newCardOrderIds.splice(overCardIndex, 0, activeCardId);
-  //           } else {
-  //             newCards.push(updatedCard);
-  //             newCardOrderIds.push(activeCardId);
-  //           }
-
-  //           return {
-  //             ...col,
-  //             cards: newCards,
-  //             cardOrderIds: newCardOrderIds,
-  //           };
-  //         }
-  //         return col;
-  //       });
-
-  //       return { ...prev, columns: newColumns };
-  //     });
-  //   }
-  // };
 
   const handleDragOver = (event: DragOverEvent): void => {
     // không làm gì nếu như đang kéo Column
@@ -255,7 +202,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
     // nếu không tồn tại thì return để tránh crash
     if (!activeColumn || !overColumn) return
-    if (activeColumn._id !== overColumn._id) {
+    if (activeColumn.id !== overColumn.id) {
       moveCardBetweenDifferentColumns(
         overColumn,
         overCardId,
@@ -277,7 +224,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
      */
     // const newBoard = { ...board }
     const newProject = cloneDeep(board)
-    const columnToUpdate = newProject?.columns.find((column: Column) => column._id === columnId)
+    const columnToUpdate = newProject?.columns.find((column: Column) => column.id === columnId)
     if (columnToUpdate) {
       columnToUpdate.cards = dndOrderedCards as Card[]
       columnToUpdate.cardOrderIds = dndOrderedCardIds as string[]
@@ -286,10 +233,11 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     // setCurrentActiveProject(newProject as Project)
     // Gọi API update Column
     // updateColumnDetailsAPI(columnId as UniqueIdentifier, { cardOrderIds: dndOrderedCardIds } as Column)
+    updateColumn({ id: columnId as string, cardOrderIds: dndOrderedCardIds as string[] })
   }
 
   const moveColumns = (dndOrderedColumns: Column[]) => {
-    const dndOrderedColumnIds = dndOrderedColumns.map(c => c._id)
+    const dndOrderedColumnIds = dndOrderedColumns.map(c => c.id)
     const newProject = { ...board }
     /**
      * Trường hợp dùng spread operator này thì lại không sao bởi vì ở đây chúng ta không dùng push như ở trên
@@ -302,7 +250,8 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     // setCurrentActiveProject(newProject as Project)
 
     // Gọi API update Board
-    // updateProjectDetailsAPI(newProject._id as UniqueIdentifier, { columnOrderIds: newProject.columnOrderIds } as Project)
+    // updateProjectDetailsAPI(newProject.id as UniqueIdentifier, { columnOrderIds: newProject.columnOrderIds } as Project)
+    updateBoard({ id: newProject.id, columnOrderIds: newProject.columnOrderIds })
   }
 
   const moveCardToDifferentColumn = (
@@ -316,7 +265,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     // console.log('nextColumnId', nextColumnId)
     // console.log('dndOrderedColumns', dndOrderedColumns)
 
-    const dndOrderedColumnIds = dndOrderedColumns.map(c => c._id)
+    const dndOrderedColumnIds = dndOrderedColumns.map(c => c.id)
     // Không vi phạm Immutability của Redux
     const newProject = { ...board }
     newProject.columns = dndOrderedColumns
@@ -326,12 +275,12 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
     // Gọi API xử lý phía BE
     // mảng gửi về BE không được có placeholder
-    let prevCardOrderIds = dndOrderedColumns.find((column) => column._id === prevColumnId)?.cardOrderIds
+    let prevCardOrderIds = dndOrderedColumns.find((column) => column.id === prevColumnId)?.cardOrderIds
     if (prevCardOrderIds?.[0].includes('placeholder-card')) {
       prevCardOrderIds = []
     }
 
-    let nextCardOrderIds = dndOrderedColumns.find((column) => column._id === nextColumnId)?.cardOrderIds
+    let nextCardOrderIds = dndOrderedColumns.find((column) => column.id === nextColumnId)?.cardOrderIds
     if (nextCardOrderIds?.[0].includes('placeholder-card')) {
       nextCardOrderIds = []
     }
@@ -342,55 +291,14 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     //   nextColumnId,
     //   nextCardOrderIds
     // })
+    moveCardToDifferentColumnAction({
+      currentCardId: currentCardId as string,
+      prevColumnId: prevColumnId as string,
+      prevCardOrderIds: prevCardOrderIds as string[],
+      nextColumnId: nextColumnId as string,
+      nextCardOrderIds: nextCardOrderIds as string[]
+    })
   }
-
-  // const handleDragEnd = (event: DragEndEvent) => {
-  //   const { active, over } = event;
-
-  //   if (!over) return;
-
-  //   const activeCardId = active.id as string;
-  //   const overCardId = over.id as string;
-
-  //   if (activeCardId === overCardId) return;
-
-  //   const activeColumn = board.columns.find((col) =>
-  //     col.cards.some((card) => card._id === activeCardId)
-  //   );
-  //   const overColumn = board.columns.find((col) =>
-  //     col.cards.some((card) => card._id === overCardId)
-  //   );
-
-  //   if (!activeColumn || !overColumn) return;
-
-  //   if (activeColumn._id === overColumn._id) {
-  //     setBoard((prev) => {
-  //       const newColumns = prev.columns.map((col) => {
-  //         if (col._id === activeColumn._id) {
-  //           const oldIndex = col.cardOrderIds.indexOf(activeCardId);
-  //           const newIndex = col.cardOrderIds.indexOf(overCardId);
-  //           const newCardOrderIds = arrayMove(
-  //             col.cardOrderIds,
-  //             oldIndex,
-  //             newIndex
-  //           );
-  //           const newCards = newCardOrderIds
-  //             .map((id) => col.cards.find((card) => card._id === id))
-  //             .filter((card): card is Card => card !== undefined);
-
-  //           return {
-  //             ...col,
-  //             cardOrderIds: newCardOrderIds,
-  //             cards: newCards,
-  //           };
-  //         }
-  //         return col;
-  //       });
-
-  //       return { ...prev, columns: newColumns };
-  //     });
-  //   }
-  // };
 
   const handleDragEnd = (event: DragEndEvent): void => {
     console.log('Drag End Event:', event)
@@ -408,8 +316,8 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
       // nếu không tồn tại thì return để tránh crash
       if (!activeColumn || !overColumn) return
-      // dùng oldColumn._id hoặc activeDragItemData.columnId được set từ lúc drag start
-      if (oldColumn!._id !== overColumn._id) {
+      // dùng oldColumn.id hoặc activeDragItemData.columnId được set từ lúc drag start
+      if (oldColumn!.id !== overColumn.id) {
         moveCardBetweenDifferentColumns(
           overColumn,
           overCardId,
@@ -422,17 +330,17 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
         )
       } else {
         // xử lý kéo thả card trong cùng column
-        const oldCardIndex = oldColumn?.cards?.findIndex((card) => card._id === activeDragItemId)
-        const newCardIndex = overColumn?.cards?.findIndex((card) => card._id === overCardId)
+        const oldCardIndex = oldColumn?.cards?.findIndex((card) => card.id === activeDragItemId)
+        const newCardIndex = overColumn?.cards?.findIndex((card) => card.id === overCardId)
 
         // dùng arrayMove cho card trong cùng column tương tự như kéo column trong cùng project
         const dndOrderedCards = arrayMove(oldColumn?.cards as Card[], oldCardIndex as number, newCardIndex)
-        const dndOrderedCardIds = dndOrderedCards.map((card) => card._id)
+        const dndOrderedCardIds = dndOrderedCards.map((card) => card.id)
         setOrderedColumns((prevColumns) => {
           // clone mảng orderedColumns ra 1 mảng mới
           const nextColumns = cloneDeep(prevColumns)
 
-          const targetColumn = nextColumns.find((column) => column._id === overColumn._id)
+          const targetColumn = nextColumns.find((column) => column.id === overColumn.id)
           if (targetColumn) {
             targetColumn.cards = dndOrderedCards
           }
@@ -441,14 +349,14 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
           }
           return nextColumns
         })
-        moveCardInTheSameColumn(dndOrderedCards, dndOrderedCardIds, oldColumn?._id)
+        moveCardInTheSameColumn(dndOrderedCards, dndOrderedCardIds, oldColumn?.id)
       }
     } else if (activeDragItemType == ACTIVE_DRAG_ITEM_TYPE.COLUMN && active.id !== over.id) {
-      const oldColumnIndex = orderedColumns.findIndex((column) => column._id === active.id)
-      const newColumnIndex = orderedColumns.findIndex((column) => column._id === over.id)
+      const oldColumnIndex = orderedColumns.findIndex((column) => column.id === active.id)
+      const newColumnIndex = orderedColumns.findIndex((column) => column.id === over.id)
       // Dùng arrayMove của Dnd Kit để sắp xếp lại mảng ban đầu
       const dndOrderedColumns = arrayMove(orderedColumns, oldColumnIndex, newColumnIndex)
-      // const dndOrderedColumnsIds = dndOrderedColumns.map((column) => column._id)
+      // const dndOrderedColumnsIds = dndOrderedColumns.map((column) => column.id)
       setOrderedColumns(dndOrderedColumns)
       // Xử lý gọi API
       moveColumns(dndOrderedColumns)
@@ -478,7 +386,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
       // nếu overId là column thì sẽ tìm tới cardId gần nhất bên trong khu vực va chạm đó dựa vào
       // thuật toán phát hiện va chạm closestCenter hoặc closestCorners đều được. Tuy nhiên ở đây
       // dùng closestCorners sẽ mượt mà hơn
-      const checkColumn = orderedColumns.find((column) => column._id === overId)
+      const checkColumn = orderedColumns.find((column) => column.id === overId)
 
       if (checkColumn) {
         // console.log('-------------')

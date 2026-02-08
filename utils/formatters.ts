@@ -2,9 +2,9 @@ import type { Column } from "@/components/kanban/kanban-board"
 
 export const generatePlaceholderCard = (column: Column) => {
   return {
-    _id: `${column._id}-placeholder-card`,
+    id: `${column.id}-placeholder-card`,
     boardId: column.boardId,
-    columnId: column._id,
+    columnId: column.id,
     FE_PlaceholderCard: true
   }
 }

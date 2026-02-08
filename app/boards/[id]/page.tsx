@@ -1,12 +1,22 @@
-import { mockData } from "@/apis/mock-data";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
+import { getBoardWithDetails } from "@/lib/queries/board-queries";
+import { notFound } from "next/navigation";
 
-export default function BoardPage() {
-  // In a real app, you would fetch the board data based on the route params
-  // For now, we're using the mock data
+export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  // Query board với nested columns và cards
+  const board = await getBoardWithDetails(id);
+  // console.log("Board detail:", board);
+
+  // Handle not found
+  if (!board) {
+    notFound();
+  }
+
   return (
     <div className="h-full p-3">
-      <KanbanBoard initialData={mockData.board} />
+      <KanbanBoard initialData={board} />
     </div>
   );
 }

@@ -16,18 +16,15 @@ import {
   Users,
   MoreHorizontal,
 } from "lucide-react";
-import { mockData } from "@/apis/mock-data";
+import { BoardOptions } from "./board-options";
+import { BoardBarTitle } from "./board-bar-title";
 
-interface BoardBarProps {
-  title?: string;
-}
-
-export function BoardBar({ title }: BoardBarProps) {
+export function BoardBar() {
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b">
       {/* Left side */}
       <div className="flex items-center gap-2">
-        <h1 className="text-lg font-semibold">{title || mockData.board.title}</h1>
+        <BoardBarTitle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -85,9 +82,11 @@ export function BoardBar({ title }: BoardBarProps) {
         </Button>
 
         {/* More button */}
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
+        <BoardOptions>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </BoardOptions>
       </div>
     </div>
   );

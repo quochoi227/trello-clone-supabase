@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { signUpAction } from "@/app/auth/actions";
+import { signUpAction } from "@/actions/auth-actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
