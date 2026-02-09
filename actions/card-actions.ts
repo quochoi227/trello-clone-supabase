@@ -95,3 +95,54 @@ export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCard
     };
   }
 }
+
+export async function updateCard(cardId: string, updateData: Partial<Card>) {
+  try {
+    const supabase = await createClient();
+    const { error, data } = await supabase
+      .from("cards")
+      .update(updateData)
+      .eq("id", cardId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating card title:", error);
+      return {
+        success: false,
+        error: "Failed to update card title. Please try again.",
+      };
+    }
+    return { success: true, data: { ...data, columnId: data.column_id } };
+  } catch (error) {
+    console.error("Unexpected error updating card title:", error);
+    return {
+      success: false,
+      error: "An unexpected error occurred. Please try again.",
+    };
+  }
+}
+
+export async function deleteCard(cardId: string) {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("cards")
+      .delete()
+      .eq("id", cardId);
+    if (error) {
+      console.error("Error deleting card:", error);
+      return {
+        success: false,
+        error: "Failed to delete card. Please try again.",
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Unexpected error deleting card:", error);
+    return {
+      success: false,
+      error: "An unexpected error occurred. Please try again.",
+    };
+  }
+}

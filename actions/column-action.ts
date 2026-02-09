@@ -35,7 +35,7 @@ export async function createColumn({
   }
 }
 
-export async function updateColumn(updateData: Partial<Column>) {
+export async function updateColumn(columnId: string, updateData: Partial<Column> & { card_order_ids?: string[] }) {
   try {
     const supabase = await createClient();
 
@@ -56,10 +56,8 @@ export async function updateColumn(updateData: Partial<Column>) {
     // TODO: Update this based on your actual database schema
     const { error } = await supabase
       .from("columns")
-      .update({
-        card_order_ids: updateData.cardOrderIds
-      })
-      .eq("id", updateData.id);
+      .update(updateData)
+      .eq("id", columnId);
 
     if (error) {
       console.error("Error updating board:", error);

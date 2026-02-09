@@ -6,6 +6,7 @@ import { Card as CardType } from "./kanban-board";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Paperclip, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCardStore } from "@/stores/card-store";
 
 interface KanbanCardProps {
   card: CardType;
@@ -31,6 +32,8 @@ export function KanbanCard({ card, isOverlay = false }: KanbanCardProps) {
     opacity: isDragging ? 0.5 : 1,
     touchAction: 'none'
   };
+
+  const { setCurrentActiveCard } = useCardStore()
 
   const shouldShowCardActions: boolean =
   !!card?.memberIds?.length ||
@@ -93,6 +96,7 @@ export function KanbanCard({ card, isOverlay = false }: KanbanCardProps) {
       {...attributes}
       {...listeners}
       className={cn({ "hidden": card?.FE_PlaceholderCard }, "bg-background rounded-[8px] shadow-[0px_1px_1px_#1E1F2140]")}
+      onClick={() => setCurrentActiveCard(card)}
     >
       <CardContent />
     </Card>

@@ -233,7 +233,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     // setCurrentActiveProject(newProject as Project)
     // Gọi API update Column
     // updateColumnDetailsAPI(columnId as UniqueIdentifier, { cardOrderIds: dndOrderedCardIds } as Column)
-    updateColumn({ id: columnId as string, cardOrderIds: dndOrderedCardIds as string[] })
+    updateColumn(columnId as string, { card_order_ids: dndOrderedCardIds as string[] })
   }
 
   const moveColumns = (dndOrderedColumns: Column[]) => {
@@ -251,7 +251,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
     // Gọi API update Board
     // updateProjectDetailsAPI(newProject.id as UniqueIdentifier, { columnOrderIds: newProject.columnOrderIds } as Project)
-    updateBoard({ id: newProject.id, columnOrderIds: newProject.columnOrderIds })
+    updateBoard(newProject?.id as string, { column_order_ids: newProject.columnOrderIds })
   }
 
   const moveCardToDifferentColumn = (

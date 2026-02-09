@@ -191,7 +191,7 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
             </SortableContext>
           </div>
         </div>
-        <div className="h-[44px] p-2 pb-1.5">
+        <div className="h-[52px] p-2 pb-1.5">
           {!openNewCardForm ? (
           <div className="h-full flex items-center gap-2">
             <Button

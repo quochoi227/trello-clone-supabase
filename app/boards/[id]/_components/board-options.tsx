@@ -9,21 +9,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createBoard } from "@/actions/board-actions";
-import type { CreateBoardInput } from "@/actions/board-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { deleteBoard } from "@/actions/board-actions";
+import { useBoardStore } from "@/stores/board-store";
 
-type MenuView = "main" | "create-board";
+type MenuView = "main" | "board-settings";
 
 interface CreateBoardMenuProps {
   children: React.ReactNode;
@@ -33,11 +24,8 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<MenuView>("main");
-  const [boardTitle, setBoardTitle] = React.useState("");
-  const [visibility, setVisibility] = React.useState<CreateBoardInput["visibility"]>("private");
-  const [showError, setShowError] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState("");
-  const [isPending, startTransition] = React.useTransition();
+  const [loading, setLoading] = React.useState(false);
+  const { currentActiveBoard } = useBoardStore()
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -45,48 +33,23 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
       // Reset về menu chính khi đóng
       setTimeout(() => {
         setView("main");
-        setBoardTitle("");
-        setShowError(false);
-        setErrorMessage("");
-        setVisibility("private");
       }, 200);
     }
   };
 
-  const handleCreateBoard = () => {
-    if (!boardTitle.trim()) {
-      setShowError(true);
-      setErrorMessage("Board title is required");
-      return;
-    }
-
-    // Gọi server action với useTransition
-    startTransition(async () => {
-      const result = await createBoard({
-        title: boardTitle,
-        visibility,
-      });
-
-      if (result.success) {
-        // Đóng popover và reset form
-        setOpen(false);
-        // Redirect đến board mới tạo (optional)
-        if (result.data?.id) {
-          router.push(`/boards/${result.data.id}`);
-        }
-      } else {
-        // Hiển thị lỗi
-        setShowError(true);
-        setErrorMessage(result.error || "Failed to create board");
-      }
-    });
-  };
-
   const handleBack = () => {
     setView("main");
-    setBoardTitle("");
-    setShowError(false);
-    setErrorMessage("");
+  };
+
+  const handleDeleteBoard = async () => {
+    setLoading(true);
+    router.push("/boards");
+    const response = await deleteBoard(currentActiveBoard?.id as string);
+    setLoading(false);
+    if (response.error) {
+      // Xử lý lỗi nếu cần
+      console.error(response.error);
+    }
   };
 
   return (
@@ -129,7 +92,6 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
               <Separator />
               <button
                 className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-left transition-colors hover:bg-accent"
-                onClick={() => setView("create-board")}
               >
                 <Info size={16} />
                 <div className="flex-1">
@@ -152,7 +114,11 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
                 Star
               </Button>
               <Separator />
-              <Button variant="ghost" className="w-full justify-start">
+              <Button
+                onClick={() => setView('board-settings')}
+                variant="ghost"
+                className="w-full justify-start"
+              >
                 <Settings size={16} />
                 Settings
               </Button>
@@ -232,7 +198,7 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <h3 className="text-center text-sm font-medium text-foreground">
-                Create board
+                Settings
               </h3>
               <Button
                 variant="ghost"
@@ -247,65 +213,12 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
             {/* Create Board Form */}
             <div className="space-y-4">
               {/* Board Title */}
-              <div className="space-y-2">
-                <Label htmlFor="board-title" className="text-xs font-bold">
-                  Board title <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="board-title"
-                  value={boardTitle}
-                  onChange={(e) => {
-                    setBoardTitle(e.target.value);
-                    if (showError && e.target.value.trim()) {
-                      setShowError(false);
-                      setErrorMessage("");
-                    }
-                  }}
-                  className={`h-9 ${
-                    showError && errorMessage
-                      ? "border-destructive focus-visible:ring-destructive"
-                      : ""
-                  }`}
-                  placeholder=""
-                  disabled={isPending}
-                />
-                {showError && errorMessage && (
-                  <div className="flex items-center gap-1 text-xs text-destructive">
-                    <span className="text-base">👋</span>
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Visibility */}
-              <div className="space-y-2">
-                <Label htmlFor="visibility" className="text-xs font-bold">
-                  Visibility
-                </Label>
-                <Select 
-                  value={visibility} 
-                  onValueChange={(value) => setVisibility(value as CreateBoardInput["visibility"])} 
-                  disabled={isPending}
-                >
-                  <SelectTrigger id="visibility" className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="private">Private</SelectItem>
-                    <SelectItem value="workspace">Workspace</SelectItem>
-                    <SelectItem value="public">Public</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Create Button */}
               <Button
+                onClick={handleDeleteBoard}
+                disabled={loading}
+                variant="destructive"
                 className="w-full"
-                onClick={handleCreateBoard}
-                disabled={!boardTitle.trim() || isPending}
-              >
-                {isPending ? "Creating..." : "Create"}
-              </Button>
+              >{loading ? "Delete board" : "Deleting board"}</Button>
             </div>
           </div>
         )}

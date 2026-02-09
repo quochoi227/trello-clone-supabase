@@ -7,7 +7,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,9 +23,30 @@ import {
   Paperclip,
   AlignLeft,
   MessageSquare,
+  Trash,
+  Trash2Icon,
+  Image,
+  Ellipsis,
 } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useCardStore } from "@/stores/card-store"
+import ToggleFocusInput from "@/components/kanban/toggle-focus-input"
+import { deleteCard, updateCard } from "@/actions/card-actions"
+import { useBoardStore } from "@/stores/board-store"
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // Mock data structure
 interface Label {
@@ -139,17 +159,15 @@ const mockCardData: CardData = {
   ]
 }
 
-interface CardDetailProps {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-}
-
-export default function CardDetail({ open, onOpenChange }: CardDetailProps) {
+export default function CardDetail() {
   const [cardData, setCardData] = useState(mockCardData)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [description, setDescription] = useState(cardData.description)
   const [newComment, setNewComment] = useState("")
   const [showCommentEditor, setShowCommentEditor] = useState(false)
+
+  const { currentActiveCard, setCurrentActiveCard } = useCardStore()
+  const { currentActiveBoard, setCurrentActiveBoard, updateCardInBoard } = useBoardStore()
 
   const handleSaveDescription = () => {
     setCardData({ ...cardData, description })
@@ -164,26 +182,56 @@ export default function CardDetail({ open, onOpenChange }: CardDetailProps) {
     }
   }
 
+  const handleOpenChanege = (isOpen: boolean) => {
+    if (!isOpen) {
+      setCurrentActiveCard(null)
+    }
+  }
+
+  const handleChangeCardTitle = async (newTitle: string) => {
+    const updateResult = await updateCard(currentActiveCard?.id as string, { title: newTitle })
+    if (updateResult) {
+      updateCardInBoard(updateResult.data)
+    }
+  }
+
+  const handleDeleteCard = async () => {
+    // Implement delete card logic here
+    await deleteCard(currentActiveCard?.id as string)
+    const board = { ...currentActiveBoard }
+    const column = board?.columns?.find(col => col.id === currentActiveCard?.columnId)
+    if (column) {
+      column.cards = column.cards.filter(card => card.id !== currentActiveCard?.id)
+    }
+    setCurrentActiveCard(null)
+    setCurrentActiveBoard(board as typeof currentActiveBoard)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Share</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-auto scrollbar-hide">
-        <DialogHeader className="hidden">
-          <DialogTitle></DialogTitle>
-          <DialogDescription></DialogDescription>
+    <Dialog open={!!currentActiveCard} onOpenChange={handleOpenChanege}>
+      <DialogContent className="sm:max-w-5xl p-0 gap-0">
+        <DialogHeader className="border-b border-slate-200 min-h-12">
+          <DialogTitle className="hidden"></DialogTitle>
+          <DialogDescription className="hidden"></DialogDescription>
+          <div className="w-full flex h-full items-start justify-end gap-2 pt-1.5 pr-12">
+            <Button variant="outline" size="icon" className="rounded-full">
+              <Image />
+            </Button>
+            <Button variant="outline" size="icon" className="rounded-full">
+              <Ellipsis />
+            </Button>
+          </div>
         </DialogHeader>
-        <div className="flex flex-col md:flex-row h-full">
+        <div className="flex flex-col md:flex-row max-h-[80vh] pb-1">
           {/* Left side - Card details */}
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+          <div className="flex-1 p-6 space-y-6 max-h-full overflow-y-auto scrollbar-custom">
             {/* Title with checkbox */}
             <div className="flex items-start gap-3">
               <input 
                 type="checkbox" 
                 className="mt-1 h-5 w-5 rounded border-gray-300"
               />
-              <h2 className="text-2xl font-semibold flex-1">{cardData.title}</h2>
+              <ToggleFocusInput style={{ fontSize: 20 }} value={currentActiveCard?.title as string} onChangedValue={handleChangeCardTitle} />
             </div>
 
             {/* Action buttons */}
@@ -208,6 +256,30 @@ export default function CardDetail({ open, onOpenChange }: CardDetailProps) {
                 <Paperclip className="w-4 h-4 mr-2" />
                 Attachment
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-red-300/20 hover:bg-red-300/50 text-red-500" size="sm">
+                    <Trash />
+                    Delete card
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent size="sm">
+                  <AlertDialogHeader>
+                    <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                      <Trash2Icon />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+                    <AlertDialogDescription>  
+                      This will permanently delete this column. View{" "}
+                      <a href="#">Settings</a> delete any memories saved during this column.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel variant="outline">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteCard} variant="destructive">Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
 
             {/* Labels */}
@@ -286,12 +358,12 @@ export default function CardDetail({ open, onOpenChange }: CardDetailProps) {
           </div>
 
           {/* Right side - Comments and activity */}
-          <div className="w-full md:w-96 border-l bg-muted/20">
+          <div className="w-full md:w-96 border-l bg-muted/20  max-h-full overflow-y-auto scrollbar-custom">
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
-                  <h3 className="text-lg font-semibold">Comments and activity</h3>
+                  <h3 className="text-sm font-semibold">Comments and activity</h3>
                 </div>
                 <Button variant="ghost" size="sm">
                   Hide details
@@ -303,6 +375,7 @@ export default function CardDetail({ open, onOpenChange }: CardDetailProps) {
                 {showCommentEditor ? (
                   <div className="space-y-2">
                     <Textarea
+                      autoFocus
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder="Write a comment..."
