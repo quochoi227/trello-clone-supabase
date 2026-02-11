@@ -115,6 +115,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
               }));
             } else if (newRecord.column_order_ids.length > board!.columnOrderIds.length) {
               console.log("case 3: column_order_ids increased");
+              console.log(newRecord.column_order_ids.length, board!.columnOrderIds.length);
+              console.log(newRecord.column_order_ids, board!.columnOrderIds);
               // Nếu column_order_ids nhiều hơn trước
               // Lọc ra các column id mới xuất hiện kèm theo index của nó trong board, query thông tin chi tiết
               const newColumnIds = newRecord.column_order_ids.filter((id: string) => !board!.columnOrderIds.includes(id));
