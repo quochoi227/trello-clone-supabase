@@ -3,6 +3,10 @@
 import { Board } from "@/components/kanban";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { Card } from "@/components/kanban";
+import { generatePlaceholderCard } from "@/utils/formatters";
+import { mapOrder } from "@/utils/sorts";
+import { isEmpty } from "lodash";
 
 export type CreateBoardInput = {
   title: string;
@@ -14,6 +18,77 @@ export type ActionResponse<T = unknown> = {
   data?: T;
   error?: string;
 };
+
+// Hàm trả về boards mà user id nằm trong owner_ids hoặc member_ids
+export async function fetchUserBoards(): Promise<ActionResponse<Board[]>> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      success: false,
+      error: "You must be logged in to create a board",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("boards")
+    .select("*")
+    .or(`owner_ids.cs.{${user.id}},member_ids.cs.{${user.id}}`);
+  if (error) {
+    console.error("Error fetching user boards:", error);
+    return { success: false, error: error.message };
+  }
+  return { success: true, data: data || [] };
+}
+
+export async function getBoardWithDetails(boardId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("boards")
+    .select(`
+      *,
+      columns (
+        *,
+        boardId: board_id,
+        cards (
+          *,
+          boardId: board_id,
+          columnId: column_id
+        )
+      )
+    `)
+    .eq("id", boardId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching board:", error);
+    return null;
+  }
+
+  const sortedColumns = mapOrder(data.columns, data.column_order_ids, 'id')
+  const columnOrderIds = data.column_order_ids
+  sortedColumns.forEach((column) => {
+    if (isEmpty(column.cards)) {
+      column.cards = [generatePlaceholderCard(column)]
+      column.cardOrderIds = [generatePlaceholderCard(column).id]
+    } else {
+      column.cards = mapOrder(column?.cards, column?.card_order_ids, 'id')
+      column.cardOrderIds = column?.cards.map((card: Card) => card.id)
+    }
+  })
+
+  return {
+    ...data,
+    columns: sortedColumns,
+    columnOrderIds
+  };
+}
 
 export async function createBoard(
   input: CreateBoardInput

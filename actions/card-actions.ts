@@ -123,7 +123,7 @@ export async function updateCard(cardId: string, updateData: Partial<Card>) {
   }
 }
 
-export async function deleteCard(cardId: string) {
+export async function deleteCard(cardId: string, columnId: string) {
   try {
     const supabase = await createClient();
     const { error } = await supabase
@@ -137,6 +137,33 @@ export async function deleteCard(cardId: string) {
         error: "Failed to delete card. Please try again.",
       };
     }
+
+    // Cập nhật lại card_order_ids trong bảng columns
+    const { data: columnData, error: columnError } = await supabase
+      .from("columns")
+      .select("card_order_ids")
+      .eq("id", columnId)
+      .single();
+    if (columnError) {
+      console.error("Error fetching column data:", columnError);
+      return {
+        success: false,
+        error: "Failed to fetch column data. Please try again.",
+      };
+    }
+    const updatedCardOrderIds = columnData.card_order_ids.filter((id: string) => id !== cardId);
+    const { error: updateError } = await supabase
+      .from("columns")
+      .update({ card_order_ids: updatedCardOrderIds })
+      .eq("id", columnId);
+    if (updateError) {
+      console.error("Error updating column card_order_ids:", updateError);
+      return {
+        success: false,
+        error: "Failed to update column data. Please try again.",
+      };
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Unexpected error deleting card:", error);
@@ -144,5 +171,24 @@ export async function deleteCard(cardId: string) {
       success: false,
       error: "An unexpected error occurred. Please try again.",
     };
+  }
+}
+
+export async function getCardDetails(cardId: string) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("cards")
+      .select("*")
+      .eq("id", cardId)
+      .single();
+    if (error) {
+      console.error("Error fetching card details:", error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: { ...data, columnId: data.column_id } };
+  } catch (error) {
+    console.error("Unexpected error fetching card details:", error);
+    return { success: false, error: "An unexpected error occurred" };
   }
 }

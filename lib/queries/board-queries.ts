@@ -1,50 +1,52 @@
-import { Card } from "@/components/kanban";
+// import { Card } from "@/components/kanban";
+// import { generatePlaceholderCard } from "@/utils/formatters";
+// import { mapOrder } from "@/utils/sorts";
+// import { isEmpty } from "lodash";
 import { createClient } from "@/lib/supabase/server";
-import { generatePlaceholderCard } from "@/utils/formatters";
-import { mapOrder } from "@/utils/sorts";
-import { isEmpty } from "lodash";
 
-export async function getBoardWithDetails(boardId: string) {
-  const supabase = await createClient();
+// export async function getBoardWithDetails(boardId: string) {
+//   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("boards")
-    .select(`
-      *,
-      columns (
-        *,
-        boardId: board_id,
-        cards (
-          *,
-          boardId: board_id,
-          columnId: column_id
-        )
-      )
-    `)
-    .eq("id", boardId)
-    .single();
+//   const { data, error } = await supabase
+//     .from("boards")
+//     .select(`
+//       *,
+//       columns (
+//         *,
+//         boardId: board_id,
+//         cards (
+//           *,
+//           boardId: board_id,
+//           columnId: column_id
+//         )
+//       )
+//     `)
+//     .eq("id", boardId)
+//     .single();
 
-  if (error) {
-    console.error("Error fetching board:", error);
-    return null;
-  }
+//   if (error) {
+//     console.error("Error fetching board:", error);
+//     return null;
+//   }
 
-  const sortedColumns = mapOrder(data.columns, data.column_order_ids, 'id')
-  sortedColumns.forEach((column) => {
-    if (isEmpty(column.cards)) {
-      column.cards = [generatePlaceholderCard(column)]
-      column.cardOrderIds = [generatePlaceholderCard(column).id]
-    } else {
-      column.cards = mapOrder(column?.cards, column?.card_order_ids, 'id')
-      column.cardOrderIds = column?.cards.map((card: Card) => card.id)
-    }
-  })
+//   const sortedColumns = mapOrder(data.columns, data.column_order_ids, 'id')
+//   const columnOrderIds = data.column_order_ids
+//   sortedColumns.forEach((column) => {
+//     if (isEmpty(column.cards)) {
+//       column.cards = [generatePlaceholderCard(column)]
+//       column.cardOrderIds = [generatePlaceholderCard(column).id]
+//     } else {
+//       column.cards = mapOrder(column?.cards, column?.card_order_ids, 'id')
+//       column.cardOrderIds = column?.cards.map((card: Card) => card.id)
+//     }
+//   })
 
-  return {
-    ...data,
-    columns: sortedColumns,
-  };
-}
+//   return {
+//     ...data,
+//     columns: sortedColumns,
+//     columnOrderIds
+//   };
+// }
 
 /**
  * Fetch board detail với filtering options

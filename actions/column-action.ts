@@ -100,3 +100,18 @@ export async function deleteColumn(columnId: string, boardId: string) {
     return { success: false, error: "An unexpected error occurred" };
   }
 }
+
+export async function getColumnDetails(columnId: string) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("columns").select("*, cards (*)").eq("id", columnId).single();
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  }
+  catch (error) {
+    console.error("Unexpected error fetching column details:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}

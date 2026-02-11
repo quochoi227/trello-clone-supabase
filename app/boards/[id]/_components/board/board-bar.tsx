@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { BoardOptions } from "./board-options";
 import { BoardBarTitle } from "./board-bar-title";
+import BoardInvitation from "./board-invitation";
 
 export function BoardBar() {
   return (
@@ -69,9 +70,7 @@ export function BoardBar() {
           <Star className="h-4 w-4" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Users className="h-4 w-4" />
-        </Button>
+        <BoardInvitation />
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 

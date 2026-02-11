@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { deleteBoard } from "@/actions/board-actions";
 import { useBoardStore } from "@/stores/board-store";
 
 type MenuView = "main" | "board-settings";
@@ -41,15 +40,16 @@ export function BoardOptions({ children }: CreateBoardMenuProps) {
     setView("main");
   };
 
-  const handleDeleteBoard = async () => {
+  const handleDeleteBoard = () => {
     setLoading(true);
-    router.push("/boards");
-    const response = await deleteBoard(currentActiveBoard?.id as string);
-    setLoading(false);
-    if (response.error) {
-      // Xử lý lỗi nếu cần
-      console.error(response.error);
-    }
+    fetch(`/api/boards/${currentActiveBoard?.id}`, {
+      method: "DELETE",
+    }).then(() => {
+      setLoading(false);
+      router.push("/boards");
+    }).finally(() => {
+      setLoading(false);
+    });
   };
 
   return (

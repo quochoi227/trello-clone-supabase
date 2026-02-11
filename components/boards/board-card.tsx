@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import randomcolor from "randomcolor";
 
 interface BoardCardProps {
   id: string;
@@ -14,7 +15,7 @@ export function BoardCard({
   id,
   title,
   coverImage,
-  backgroundColor = "#6b7280",
+  backgroundColor = randomcolor(),
 }: BoardCardProps) {
   const isGradient = backgroundColor?.startsWith("linear-gradient");
   

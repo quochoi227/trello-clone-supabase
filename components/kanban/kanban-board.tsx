@@ -29,6 +29,7 @@ import { updateBoard } from "@/actions/board-actions";
 import { moveCardToDifferentColumnAction } from "@/actions/card-actions";
 import { useBoardStore } from "@/stores/board-store";
 import { updateColumn } from "@/actions/column-action";
+import { ActivityWithUser } from "@/types/activity";
 
 export interface Card {
   id: string;
@@ -39,6 +40,8 @@ export interface Card {
   cover?: string | null;
   memberIds?: string[];
   comments?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  activities?: ActivityWithUser[];
   attachments?: string[];
   FE_PlaceholderCard?: boolean;
 }
@@ -238,7 +241,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
   const moveColumns = (dndOrderedColumns: Column[]) => {
     const dndOrderedColumnIds = dndOrderedColumns.map(c => c.id)
-    const newProject = { ...board }
+    const newProject = { ...currentActiveBoard }
     /**
      * Trường hợp dùng spread operator này thì lại không sao bởi vì ở đây chúng ta không dùng push như ở trên
      * làm thay đổi trực tiếp kiểu mở rộng mảng, mà chỉ đang gán lại toàn bộ giá trị columns và columnOrderIds
@@ -247,11 +250,12 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     newProject.columns = dndOrderedColumns
     newProject.columnOrderIds = dndOrderedColumnIds
 
-    // setCurrentActiveProject(newProject as Project)
+    setCurrentActiveBoard(newProject as typeof currentActiveBoard)
 
     // Gọi API update Board
+    // console.log('Calling updateBoard API to update columnOrderIds:', dndOrderedColumnIds)
     // updateProjectDetailsAPI(newProject.id as UniqueIdentifier, { columnOrderIds: newProject.columnOrderIds } as Project)
-    updateBoard(newProject?.id as string, { column_order_ids: newProject.columnOrderIds })
+    updateBoard(newProject?.id as string, { column_order_ids: newProject.columnOrderIds } )
   }
 
   const moveCardToDifferentColumn = (
@@ -271,18 +275,19 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     newProject.columns = dndOrderedColumns
     newProject.columnOrderIds = dndOrderedColumnIds
     // setBoard(newBoard)
-    // setCurrentActiveProject(newProject as Project)
+    // setCurrentActiveBoard(newProject as typeof currentActiveBoard)
 
+    setCurrentActiveBoard(newProject as typeof currentActiveBoard)
     // Gọi API xử lý phía BE
     // mảng gửi về BE không được có placeholder
-    let prevCardOrderIds = dndOrderedColumns.find((column) => column.id === prevColumnId)?.cardOrderIds
+    const prevCardOrderIds = dndOrderedColumns.find((column) => column.id === prevColumnId)?.cardOrderIds
     if (prevCardOrderIds?.[0].includes('placeholder-card')) {
-      prevCardOrderIds = []
+      prevCardOrderIds.shift()
     }
 
-    let nextCardOrderIds = dndOrderedColumns.find((column) => column.id === nextColumnId)?.cardOrderIds
+    const nextCardOrderIds = dndOrderedColumns.find((column) => column.id === nextColumnId)?.cardOrderIds
     if (nextCardOrderIds?.[0].includes('placeholder-card')) {
-      nextCardOrderIds = []
+      nextCardOrderIds.shift()
     }
     // moveCardToDifferentColumnAPI({
     //   currentCardId,
@@ -301,7 +306,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
   }
 
   const handleDragEnd = (event: DragEndEvent): void => {
-    console.log('Drag End Event:', event)
+    // console.log('Drag End Event:', event)
     const { active, over } = event
     if (!active || !over) return
 

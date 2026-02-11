@@ -6,16 +6,16 @@ import { KanbanColumn } from "./kanban-column";
 import { Button } from "../ui/button";
 import { CirclePlus, X } from "lucide-react";
 import { Input } from "../ui/input";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { generatePlaceholderCard } from "@/utils/formatters";
 // import { cloneDeep } from "lodash";
 import { createColumn } from "@/actions/column-action";
 import { useBoardStore } from "@/stores/board-store";
-import CardDetail from "@/app/boards/[id]/_components/card-detail";
+import CardDetail from "@/app/boards/[id]/_components/card/card-detail";
 
 export function ListColumns({ columns }: { columns: Board["columns"] }) {
-  const { currentActiveBoard, setCurrentActiveBoard } = useBoardStore()
-
+  const { currentActiveBoard, setCurrentActiveBoard, subscribeToBoard, subscribeToColumn } = useBoardStore()
+  // const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(null);
   // SortableContent yêu cầu items dạng ['id-1', 'id-2'] chứ không phải [{id: 'id-1', id: 'id-2'}]
   // nếu không đúng thì vẫn kéo thả được nhưng không có animation
   const [openNewColumnForm, setOpenNewColumnForm] = useState<boolean>(false)
@@ -86,16 +86,23 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
     }
   }
 
+  useEffect(() => {
+    if (currentActiveBoard?.id) {
+      subscribeToBoard(currentActiveBoard.id);
+      subscribeToColumn(currentActiveBoard.id)
+    }
+  }, [currentActiveBoard?.id, subscribeToBoard]);
+
   const columnIds = columns?.map((column) => column.id)
 
   return (
     <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
       <div className="w-full h-full flex gap-4 overflow-x-auto pb-4 scrollbar-custom">
         {columns.map((column) => (
-          <KanbanColumn key={column.id} column={column} />
+          <KanbanColumn key={column.id} column={column}  />
         ))}
         {!openNewColumnForm
-          ? <div className="w-60 min-w-60 h-fit bg-[#f1f2f4]">
+          ? <div className="w-60 min-w-60 h-fit">
             
             <Button
               onClick={toggleOpenNewColumnForm}
@@ -105,7 +112,7 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
               Add new column
             </Button>
           </div>
-          : <div className="min-w-60 w-60 p-2 rounded-md h-fit bg-[#f1f2f4] flex flex-col gap-1">
+          : <div className="min-w-60 w-60 p-2 rounded-md h-fit flex flex-col gap-1">
             <Input
               value={newColumnTitle}
               onChange={(e) => setNewColumnTitle(e.target.value)}

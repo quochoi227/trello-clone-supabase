@@ -1,5 +1,5 @@
 import { KanbanBoard } from "@/components/kanban/kanban-board";
-import { getBoardWithDetails } from "@/lib/queries/board-queries";
+import { getBoardWithDetails } from "@/actions/board-actions";
 import { notFound } from "next/navigation";
 
 export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {

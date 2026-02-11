@@ -1,5 +1,5 @@
 import { Header } from "@/components/layout/header";
-import { BoardBar } from "./_components/board-bar";
+import { BoardBar } from "./_components/board/board-bar";
 import { Suspense } from "react";
 
 export default function BoardDetailLayout({

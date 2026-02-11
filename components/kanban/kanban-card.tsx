@@ -52,11 +52,6 @@ export function KanbanCard({ card, isOverlay = false }: KanbanCardProps) {
       )}
       <div className="p-3">
         <h4 className={cn({ "mb-2": shouldShowCardActions }, "font-medium text-sm")}>{card.title}</h4>
-        {card.description && (
-          <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-            {card.description}
-          </p>
-        )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           {card.memberIds && card.memberIds.length > 0 && (
             <div className="flex items-center gap-1">

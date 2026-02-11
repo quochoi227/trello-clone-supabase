@@ -8,28 +8,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-import { useState } from 'react'
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
+
 import { 
   Plus, 
   Calendar, 
   CheckSquare, 
   Users, 
   Paperclip,
-  AlignLeft,
   MessageSquare,
   Trash,
   Trash2Icon,
   Image,
   Ellipsis,
 } from "lucide-react"
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { useCardStore } from "@/stores/card-store"
 import ToggleFocusInput from "@/components/kanban/toggle-focus-input"
 import { deleteCard, updateCard } from "@/actions/card-actions"
@@ -47,6 +40,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import CardActivities from "./card-activities"
+import CardDescription from "./card-description"
+import { Card } from "@/components/kanban"
+import { useEffect } from "react"
 
 // Mock data structure
 interface Label {
@@ -160,27 +157,8 @@ const mockCardData: CardData = {
 }
 
 export default function CardDetail() {
-  const [cardData, setCardData] = useState(mockCardData)
-  const [isEditingDescription, setIsEditingDescription] = useState(false)
-  const [description, setDescription] = useState(cardData.description)
-  const [newComment, setNewComment] = useState("")
-  const [showCommentEditor, setShowCommentEditor] = useState(false)
-
-  const { currentActiveCard, setCurrentActiveCard } = useCardStore()
-  const { currentActiveBoard, setCurrentActiveBoard, updateCardInBoard } = useBoardStore()
-
-  const handleSaveDescription = () => {
-    setCardData({ ...cardData, description })
-    setIsEditingDescription(false)
-  }
-
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      // Here you would add the comment to activities
-      setNewComment("")
-      setShowCommentEditor(false)
-    }
-  }
+  const { currentActiveCard, setCurrentActiveCard, subscribeToCard } = useCardStore()
+  const { currentActiveBoard, setCurrentActiveBoard, updateCardInBoard } = useBoardStore()  
 
   const handleOpenChanege = (isOpen: boolean) => {
     if (!isOpen) {
@@ -197,7 +175,7 @@ export default function CardDetail() {
 
   const handleDeleteCard = async () => {
     // Implement delete card logic here
-    await deleteCard(currentActiveCard?.id as string)
+    await deleteCard(currentActiveCard?.id as string, currentActiveCard?.columnId as string)
     const board = { ...currentActiveBoard }
     const column = board?.columns?.find(col => col.id === currentActiveCard?.columnId)
     if (column) {
@@ -206,6 +184,13 @@ export default function CardDetail() {
     setCurrentActiveCard(null)
     setCurrentActiveBoard(board as typeof currentActiveBoard)
   }
+
+  useEffect(() => {
+    if (currentActiveCard) {
+      // Subscribe to card updates
+      subscribeToCard(currentActiveCard.id as string)
+    }
+  }, [currentActiveCard, currentActiveCard?.id, subscribeToCard])
 
   return (
     <Dialog open={!!currentActiveCard} onOpenChange={handleOpenChanege}>
@@ -286,7 +271,7 @@ export default function CardDetail() {
             <div>
               <h3 className="text-sm font-semibold mb-2">Labels</h3>
               <div className="flex items-center gap-2">
-                {cardData.labels.map((label) => (
+                {mockCardData.labels.map((label) => (
                   <div
                     key={label.id}
                     className="h-8 w-20 rounded"
@@ -300,61 +285,7 @@ export default function CardDetail() {
             </div>
 
             {/* Description */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <AlignLeft className="w-5 h-5" />
-                  <h3 className="text-lg font-semibold">Description</h3>
-                </div>
-                {!isEditingDescription && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setIsEditingDescription(true)}
-                  >
-                    Edit
-                  </Button>
-                )}
-              </div>
-
-              {isEditingDescription ? (
-                <div className="space-y-3">
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="min-h-[200px] font-mono text-sm"
-                    placeholder="Add a more detailed description..."
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveDescription}>
-                      Save
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => {
-                        setDescription(cardData.description)
-                        setIsEditingDescription(false)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Tip: Supports Markdown formatting
-                  </p>
-                </div>
-              ) : (
-                <div 
-                  className="prose prose-sm dark:prose-invert max-w-none p-4 rounded-md border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-hr:my-4"
-                  onClick={() => setIsEditingDescription(true)}
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {cardData.description || "*Click to add description*"}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
+            <CardDescription cardData={currentActiveCard as Card} />
           </div>
 
           {/* Right side - Comments and activity */}
@@ -371,70 +302,7 @@ export default function CardDetail() {
               </div>
 
               {/* Comment input */}
-              <div className="space-y-2">
-                {showCommentEditor ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      autoFocus
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Write a comment..."
-                      className="min-h-[80px] text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleAddComment}>
-                        Save
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => {
-                          setNewComment("")
-                          setShowCommentEditor(false)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Supports Markdown
-                    </p>
-                  </div>
-                ) : (
-                  <Input
-                    placeholder="Write a comment..."
-                    onFocus={() => setShowCommentEditor(true)}
-                    className="cursor-text"
-                  />
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Activity feed */}
-              <div className="space-y-4 max-h-[500px] overflow-y-auto">
-                {cardData.activities.map((activity) => (
-                  <div key={activity.id} className="flex gap-3">
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarFallback 
-                        style={{ backgroundColor: activity.user.color }}
-                        className="text-white text-xs font-semibold"
-                      >
-                        {activity.user.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm">
-                        <span className="font-semibold">{activity.user.name}</span>{" "}
-                        <span className="text-muted-foreground">{activity.action}</span>
-                      </p>
-                      <a href="#" className="text-xs text-blue-600 hover:underline">
-                        {activity.timestamp}
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <CardActivities cardData={currentActiveCard as Card} />
             </div>
           </div>
         </div>
