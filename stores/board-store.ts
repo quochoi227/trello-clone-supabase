@@ -76,6 +76,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         (payload) => {
           const { eventType, new: newRecord } = payload;
           console.log("Received board event:", eventType);
+          console.log("New record data:", newRecord);
           if (eventType === "UPDATE") {
             // Cập nhật tất cả các thuộc tính của board
             const board = get().currentActiveBoard;
