@@ -2,9 +2,15 @@ import { create } from "zustand";
 import type { BoardStore } from "@/types/board.ts";
 import { createClient } from "@/lib/supabase/client";
 import { mapOrder } from "@/utils/sorts";
+import { Board, Card, Column } from "@/components/kanban";
+import { generatePlaceholderCard } from "@/utils/formatters";
+import { RealtimePostgresDeletePayload, RealtimePostgresInsertPayload, RealtimePostgresUpdatePayload } from "@supabase/supabase-js";
+import { useCardStore } from "./card-store";
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
   boardChannel: null,
+  columnChannel: null,
+  cardChannel: null,
   currentActiveBoard: null,
   setCurrentActiveBoard: (board) => set({ currentActiveBoard: board }),
   updateCardInBoard: (updatedCard) =>
@@ -27,11 +33,6 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         },
       };
     }),
-  // fetchProjectDetailsAPI: async (projectId) => {
-  //   console.log("Gọi API fetch chi tiết project với ID:", projectId);
-  //   // Giả lập gọi API với dữ liệu mock
-  //   set({ currentActiveBoard: mockData.project as Project });
-  // }
   updateColumnsInBoard: (updatedColumns) => 
     set((state) => {
       const board = state.currentActiveBoard;
@@ -60,93 +61,47 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         },
       };
     }),
-  subscribeToBoard: (boardId) => {
+  subscribeToBoard: async (boardId) => {
     get().unsubscribeFromBoard(); // Unsubscribe from any existing channel
     const supabase = createClient();
+
+    const { data: { user } } = await supabase.auth.getUser()
+
     const channel = supabase
       .channel(`board-${boardId}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "boards",
           filter: `id=eq.${boardId}`
         },
-        (payload) => {
-          const { eventType, new: newRecord } = payload;
-          console.log("Received board event:", eventType);
-          console.log("New record data:", newRecord);
-          if (eventType === "UPDATE") {
-            // Cập nhật tất cả các thuộc tính của board
-            const board = get().currentActiveBoard;
-            console.log("Found target board for update:", board);
-            Object.assign(board!, newRecord);
-            // console.log(board?.columnOrderIds)
-            // console.log("Received board update via subscription:", newRecord.column_order_ids);
-            // Nếu số lượng column_order_ids bằng nhau và thứ tự column_order_ids khác nhau, cập nhật lại danh sách columns
-            if (board && board.columnOrderIds.length === newRecord.column_order_ids.length && JSON.stringify(board.columnOrderIds) !== JSON.stringify(newRecord.column_order_ids)) {
-              console.log("case 1: column_order_ids changed order");
-              board.columns = mapOrder(
-                board.columns,
-                newRecord.column_order_ids,
-                'id'
-              );
-              set((state) => ({
-                currentActiveBoard: {
-                  ...state.currentActiveBoard!,
-                  columns: board.columns,
-                  columnOrderIds: newRecord.column_order_ids,
-                },
-              }));
-            } else if (newRecord.column_order_ids.length < board!.columnOrderIds.length) {
-              console.log("case 2: column_order_ids reduced");
-              // Nếu column_order_ids ít hơn trước, loại bỏ các cột không còn trong danh sách
-              const eliminatedColumnIds = board!.columnOrderIds.filter(id => !newRecord.column_order_ids.includes(id));
-              if (eliminatedColumnIds.length > 0) {
-                board!.columns = board!.columns.filter(column => !eliminatedColumnIds.includes(column.id));
-              }
-              set((state) => ({
-                currentActiveBoard: {
-                  ...state.currentActiveBoard!,
-                  columns: board!.columns,
-                  columnOrderIds: newRecord.column_order_ids,
-                },
-              }));
-            } else if (newRecord.column_order_ids.length > board!.columnOrderIds.length) {
-              console.log("case 3: column_order_ids increased");
-              console.log(newRecord.column_order_ids.length, board!.columnOrderIds.length);
-              console.log(newRecord.column_order_ids, board!.columnOrderIds);
-              // Nếu column_order_ids nhiều hơn trước
-              // Lọc ra các column id mới xuất hiện kèm theo index của nó trong board, query thông tin chi tiết
-              const newColumnIds = newRecord.column_order_ids.filter((id: string) => !board!.columnOrderIds.includes(id));
-              const columnIdsWithIndex = newColumnIds.map((id: string) => ({
-                id,
-                index: newRecord.column_order_ids.indexOf(id),
-              }));
-              Promise.all(columnIdsWithIndex.map(({ id }: { id: string }) =>
-                fetch(`/api/columns/${id}`, {
-                  method: "GET",
-                }).then((res) => res.json())
-              )).then((newColumns) => {
-                console.log("Fetched new columns to insert:", newColumns);
-                newColumns.forEach((column, idx) => {
-                  const insertIndex = columnIdsWithIndex[idx].index;
-                  board!.columns.splice(insertIndex, 0, column.data);
-                });
-                set((state) => ({
-                  currentActiveBoard: {
-                    ...state.currentActiveBoard!,
-                    columns: board!.columns,
-                    columnOrderIds: newRecord.column_order_ids,
-                  },
-                }));
-              });
-
-            }
-          } else if (eventType === "DELETE") {
-            // Handle board deletion if necessary
-            console.log("Board has been deleted:", newRecord);
+        (payload: RealtimePostgresUpdatePayload<Board>) => {
+          const { new: newRecord } = payload;
+          
+          if (newRecord.user_id === user?.id) {
+            console.log("Received board event for own action");
+            return;
+          }
+        
+          // Cập nhật tất cả các thuộc tính của board
+          const board = get().currentActiveBoard;
+          Object.assign(board!, newRecord);
+          if (board && board.columnOrderIds.length === newRecord.column_order_ids?.length && JSON.stringify(board.columnOrderIds) !== JSON.stringify(newRecord.column_order_ids)) {
+            console.log("case 1: column_order_ids changed order");
+            board.columns = mapOrder(
+              board.columns,
+              newRecord.column_order_ids,
+              'id'
+            );
+            set((state) => ({
+              currentActiveBoard: {
+                ...state.currentActiveBoard!,
+                columns: board.columns,
+                columnOrderIds: newRecord.column_order_ids,
+              } as typeof state.currentActiveBoard,
+            }));
           }
         })
       .subscribe();
@@ -159,64 +114,74 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       set({ boardChannel: null });
     }
   },
-  subscribeToColumn: (boardId: string) => {
+  subscribeToColumn: async (boardId: string) => {
     get().unsubscribeFromColumn();
+    const supabase = createClient();
+
+    const { data: { user } } = await supabase.auth.getUser()
     // Implement subscription logic here
     if (!boardId) return;
-    const supabase = createClient()
     const channel = supabase
       .channel(`column-${boardId}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "columns",
           filter: `board_id=eq.${boardId}` },
-        (payload) => {
+        (payload: RealtimePostgresInsertPayload<Column>) => {
           // console.log("Received payload for column:", payload);
           // Handle real-time updates for the column here
-          const { eventType, new: newRecord } = payload;
-          console.log("Received column event:", eventType);
-          if (eventType === "UPDATE") {
-            const targetColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.id);
-            if (targetColumn && !targetColumn.cardOrderIds) {
-              targetColumn.cardOrderIds = [];
-            }
-            if (targetColumn) {
-              // console.log("Found target column for update:", targetColumn);
-              // console.log("Updating column in store:", newRecord);
-              // Cập nhật tất cả các thuộc tính của cột
-              Object.assign(targetColumn, newRecord);
-              
-              // Nếu số lượng card_order_ids bằng nhau và thứ tự card_order_ids khác nhau, cập nhật lại danh sách cards
-              if (targetColumn.cardOrderIds.length === newRecord.card_order_ids.length && JSON.stringify(targetColumn.cardOrderIds) !== JSON.stringify(newRecord.card_order_ids)) {
-                console.log("case 1: card_order_ids changed order");
-                targetColumn.cards = mapOrder(
-                  targetColumn.cards,
-                  newRecord.card_order_ids,
-                  'id'
-                );
+          const { new: newRecord } = payload;
+          if (newRecord.user_id === user?.id) {
+            console.log("Received column event for own action");
+            return;
+          }
 
-                set((state) => ({
-                  currentActiveBoard: {
-                    ...state.currentActiveBoard!,
-                    columns: state.currentActiveBoard!.columns.map(col =>
-                      col.id === targetColumn.id ? {
-                        ...targetColumn,
-                        cardOrderIds: newRecord.card_order_ids
-                      } : col
-                    ),
-                  },
-                }));
-              } else if (newRecord.card_order_ids.length < targetColumn.cardOrderIds.length) {
-                console.log("case 2: card_order_ids reduced");
-                // Nếu card_order_ids ít hơn trước, loại bỏ các thẻ không còn trong danh sách
-                const eliminatedColumnIds = targetColumn.cardOrderIds.filter(id => !newRecord.card_order_ids.includes(id));
-                if (eliminatedColumnIds.length > 0) {
-                  targetColumn.cards = targetColumn.cards.filter(card => !eliminatedColumnIds.includes(card.id));
-                }
-                set((state) => ({
+          const board = get().currentActiveBoard;
+          if (!board) return;
+          const placeholderCard = generatePlaceholderCard(newRecord as Column);
+          const newColumn: Column = { ...newRecord, cards: [placeholderCard], cardOrderIds: [placeholderCard.id] } as unknown as Column;
+
+          set((state) => ({
+            currentActiveBoard: {
+              ...state.currentActiveBoard!,
+              columns: [...state.currentActiveBoard!.columns, newColumn],
+              columnOrderIds: [...state.currentActiveBoard!.columnOrderIds, newRecord.id],
+            },
+          }))
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "columns",
+          filter: `board_id=eq.${boardId}` },
+        (payload: RealtimePostgresUpdatePayload<Column>) => {
+          const { new: newRecord } = payload;
+          if (newRecord.user_id === user?.id) {
+            console.log("Received column event for own action");
+            return;
+          }
+          const targetColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.id);
+          if (targetColumn) {
+            // console.log("Found target column for update:", targetColumn);
+            // console.log("Updating column in store:", newRecord);
+            // Cập nhật tất cả các thuộc tính của cột
+            // Nếu số lượng card_order_ids bằng nhau và thứ tự card_order_ids khác nhau, cập nhật lại danh sách cards
+            const isColumnIncludesPlaceholderCard = targetColumn.cardOrderIds[0]?.includes("placeholder-card");
+            if (!isColumnIncludesPlaceholderCard && targetColumn.cardOrderIds.length === newRecord.card_order_ids?.length && JSON.stringify(targetColumn.cardOrderIds) !== JSON.stringify(newRecord.card_order_ids)) {
+              console.log("case 1: card_order_ids changed order");
+              targetColumn.cards = mapOrder(
+                targetColumn.cards,
+                newRecord.card_order_ids,
+                'id'
+              );
+
+              set((state) => ({
                 currentActiveBoard: {
                   ...state.currentActiveBoard!,
                   columns: state.currentActiveBoard!.columns.map(col =>
@@ -225,56 +190,211 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
                       cardOrderIds: newRecord.card_order_ids
                     } : col
                   ),
-                },
+                } as typeof state.currentActiveBoard,
               }));
-              } else if (newRecord.card_order_ids.length > targetColumn.cardOrderIds.length) {
-                console.log("case 3: card_order_ids increased");
-                // Nếu card_order_ids nhiều hơn trước
-                // Lọc ra các card id mới xuất hiện kèm theo index của nó trong column, query thông tin chi tiết
-                // và thêm vào vị trí cũ
-                const newCardIds = newRecord.card_order_ids.filter((id: string) => !targetColumn.cardOrderIds.includes(id));
-                const cardIdsWithIndex = newCardIds.map((id: string) => ({
-                  id,
-                  index: newRecord.card_order_ids.indexOf(id),
-                }));
-                Promise.all(cardIdsWithIndex.map(({ id }: { id: string }) =>
-                  fetch(`/api/cards/${id}`, {
-                    method: "GET",
-                  }).then((res) => res.json())
-                )).then((newCards) => {
-                  console.log("Fetched new cards to insert:", newCards);
-                  newCards.forEach((card, idx) => {
-                    const insertIndex = cardIdsWithIndex[idx].index;
-                    targetColumn.cards.splice(insertIndex, 0, card.data);
-                  });
-                  set((state) => ({
-                    currentActiveBoard: {
-                      ...state.currentActiveBoard!,
-                      columns: state.currentActiveBoard!.columns.map(col =>
-                        col.id === targetColumn.id ? {
-                          ...targetColumn,
-                          cardOrderIds: newRecord.card_order_ids
-                        } : col
-                      ),
-                    },
-                  }));
-                });
-
-              }
             }
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "columns",
+          filter: `board_id=eq.${boardId}` },
+        (payload: RealtimePostgresDeletePayload<Column>) => {
+          const { old: oldRecord } = payload;
+          if (oldRecord.user_id === user?.id) {
+            console.log("Received column event for own action");
+            return;
+          }
+
+          const board = get().currentActiveBoard;
+          if (!board) return;
+          set((state) => ({
+            currentActiveBoard: {
+              ...state.currentActiveBoard!,
+              columns: state.currentActiveBoard!.columns.filter(col => col.id !== oldRecord.id),
+              columnOrderIds: state.currentActiveBoard!.columnOrderIds.filter(id => id !== oldRecord.id),
+            },
+          }))
+        }
+      )
+      
       .subscribe();
 
-    set({ boardChannel: channel });
+    set({ columnChannel: channel });
   },
   unsubscribeFromColumn: () => {
-    const channel = get().boardChannel;
+    const channel = get().columnChannel;
     if (channel) {
       // Implement unsubscription logic here
-      console.log("Unsubscribed from column channel");
-      set({ boardChannel: null });
+      set({ columnChannel: null });
     }
   },
+  subscribeToCard: async (boardId: string) => {
+      get().unsubscribeFromCard()
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      const channel = supabase
+        .channel(`card-${boardId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "cards",
+            filter: `board_id=eq.${boardId}` },
+          (payload: RealtimePostgresInsertPayload<Card>) => {
+            const { new: newRecord } = payload
+            if (user?.id === newRecord.owner_id) {
+              console.log("Updated card from own action, ignoring")
+              return
+            }
+
+            // Handle real-time insert card if needed
+            const targetColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.column_id)
+            if (targetColumn?.cardOrderIds?.[0].includes("placeholder-card")) {
+              targetColumn.cards = []
+              targetColumn.cardOrderIds = []
+            }
+            if (targetColumn) {
+              targetColumn.cards.push(newRecord)
+              targetColumn.cardOrderIds!.push(newRecord.id)
+              set((state) => ({
+                currentActiveBoard: {
+                  ...state.currentActiveBoard!,
+                  columns: state.currentActiveBoard!.columns.map(col =>
+                    col.id === targetColumn.id ? targetColumn : col
+                  ),
+                } as typeof state.currentActiveBoard,
+              }))
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "cards",
+            filter: `board_id=eq.${boardId}` },
+          (payload: RealtimePostgresUpdatePayload<Card>) => {
+            const { old: oldRecord, new: newRecord } = payload
+            if (user?.id === newRecord.owner_id) {
+              console.log("Updated card from own action, ignoring")
+              return
+            }
+
+            console.log("payload received for new card:", payload)
+
+            // Nếu column_id cũ khác column_id mới, nghĩa là thẻ đã được di chuyển giữa các cột
+            if (oldRecord.column_id !== newRecord.column_id) {
+              // Xóa thẻ khỏi cột cũ
+              const oldColumn = get().currentActiveBoard?.columns.find(col => col.id === oldRecord.column_id)
+              
+
+              const targetCard = oldColumn?.cards.find(card => card.id === newRecord.id)
+              if (oldColumn) {
+                oldColumn.cards = oldColumn.cards.filter(card => card.id !== oldRecord.id)
+                oldColumn.cardOrderIds = oldColumn.cardOrderIds?.filter(id => id !== oldRecord.id)
+                oldColumn.card_order_ids = oldColumn.cardOrderIds
+                console.log("After removing card, oldColumn:", oldColumn)
+                // if (oldColumn.cardOrderIds?.[0].includes("placeholder-card")) {
+                //   const placeholderCard = generatePlaceholderCard(oldColumn)
+                //   oldColumn.cards = [placeholderCard]
+                //   oldColumn.cardOrderIds = [placeholderCard.id]
+                // }
+              }
+
+              // Tìm ra thẻ hiện tại
+
+              // Thêm thẻ vào cột mới
+              const newColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.column_id)
+              if (newColumn) {
+                newColumn.cards?.splice(newRecord.new_index as number, 0, targetCard as Card)
+                newColumn.cardOrderIds?.splice(newRecord.new_index as number, 0, newRecord.id)
+                newColumn.card_order_ids = newColumn.cardOrderIds
+                console.log("After adding card, newColumn:", newColumn)
+              }
+              
+              set((state) => ({
+                currentActiveBoard: {
+                  ...state.currentActiveBoard!,
+                  columns: state.currentActiveBoard!.columns.map(col => {
+                    if (col.id === oldRecord.column_id) return oldColumn!;
+                    if (col.id === newRecord.column_id) return newColumn!;
+                    return col;
+                  }),
+                } as typeof state.currentActiveBoard,
+              }))
+              return
+            }
+
+            const currentActiveCard = useCardStore.getState().currentActiveCard
+            if (currentActiveCard && currentActiveCard.id === newRecord.id) {
+              const newActiveCard = {
+              ...currentActiveCard,
+              ...newRecord
+              }
+              useCardStore.getState().setCurrentActiveCard(newActiveCard as Card)
+            }
+            
+            const targetColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.column_id)
+            if (targetColumn) {
+              targetColumn.cards = targetColumn.cards.map(card =>
+                card.id === newRecord.id ? { ...card, ...newRecord } : card
+              )
+              set((state) => ({
+                currentActiveBoard: {
+                  ...state.currentActiveBoard!,
+                  columns: state.currentActiveBoard!.columns.map(col =>
+                    col.id === targetColumn.id ? targetColumn : col
+                  ),
+                } as typeof state.currentActiveBoard,
+              }))
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "cards",
+            filter: `board_id=eq.${boardId}` },
+          (payload: RealtimePostgresDeletePayload<Card>) => {
+            const { old: oldRecord } = payload
+            if (user?.id === oldRecord.owner_id) {
+              console.log("Deleted card from own action, ignoring")
+              return
+            }
+
+            const targetColumn = get().currentActiveBoard?.columns.find(col => col.cardOrderIds?.includes(oldRecord.id as string))
+            if (targetColumn) {
+              targetColumn.cards = targetColumn.cards.filter(card => card.id !== oldRecord.id)
+              targetColumn.cardOrderIds = targetColumn.cardOrderIds?.filter(id => id !== oldRecord.id)
+              set((state) => ({
+                currentActiveBoard: {
+                  ...state.currentActiveBoard!,
+                  columns: state.currentActiveBoard!.columns.map(col =>
+                    col.id === targetColumn.id ? targetColumn : col
+                  ),
+                } as typeof state.currentActiveBoard,
+              }))
+            }
+          }
+        )
+        .subscribe()
+
+      set({ cardChannel: channel })
+    },
+    unsubscribeFromCard: () => {
+      const channel = get().cardChannel
+      if (channel) {
+        channel.unsubscribe()
+        set({ cardChannel: null })
+      }
+    },
 }))

@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createBoard } from "@/actions/board-actions";
 import type { CreateBoardInput } from "@/actions/board-actions";
 
 type MenuView = "main" | "create-board";
@@ -35,7 +34,7 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
   const [visibility, setVisibility] = React.useState<CreateBoardInput["visibility"]>("private");
   const [showError, setShowError] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState("");
-  const [isPending, startTransition] = React.useTransition();
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -58,26 +57,30 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
       return;
     }
 
+    setIsLoading(true);
+
     // Gọi server action với useTransition
-    startTransition(async () => {
-      const result = await createBoard({
+    fetch("/api/boards", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         title: boardTitle,
         visibility,
-      });
-
-      if (result.success) {
-        // Đóng popover và reset form
+      }),
+    }).then((res) => res.json())
+      .then((data) => {
         setOpen(false);
-        // Redirect đến board mới tạo (optional)
-        if (result.data?.id) {
-          router.push(`/boards/${result.data.id}`);
-        }
-      } else {
-        // Hiển thị lỗi
+        router.push(`/boards/${data.data.id}`);
+      })
+      .catch((error) => {
         setShowError(true);
-        setErrorMessage(result.error || "Failed to create board");
-      }
-    });
+        setErrorMessage(error.error || "Failed to create board");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   const handleBack = () => {
@@ -190,7 +193,7 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
                       : ""
                   }`}
                   placeholder=""
-                  disabled={isPending}
+                  disabled={isLoading}
                 />
                 {showError && errorMessage && (
                   <div className="flex items-center gap-1 text-xs text-destructive">
@@ -208,7 +211,7 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
                 <Select 
                   value={visibility} 
                   onValueChange={(value) => setVisibility(value as CreateBoardInput["visibility"])} 
-                  disabled={isPending}
+                  disabled={isLoading}
                 >
                   <SelectTrigger id="visibility" className="h-9">
                     <SelectValue />
@@ -225,9 +228,9 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
               <Button
                 className="w-full"
                 onClick={handleCreateBoard}
-                disabled={!boardTitle.trim() || isPending}
+                disabled={!boardTitle.trim() || isLoading}
               >
-                {isPending ? "Creating..." : "Create"}
+                {isLoading ? "Creating..." : "Create"}
               </Button>
             </div>
           </div>

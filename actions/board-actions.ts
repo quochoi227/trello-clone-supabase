@@ -130,6 +130,7 @@ export async function createBoard(
           .replace(/(^-|-$)+/g, ""),
         description: "",
         owner_ids: [user.id],
+        user_id: user.id,
       })
       .select("id")
       .single();
@@ -179,7 +180,10 @@ export async function updateBoard(boardId: string, updateData: Partial<Board> & 
     // TODO: Update this based on your actual database schema
     const { error } = await supabase
       .from("boards")
-      .update(updateData)
+      .update({
+        ...updateData,
+        user_id: user.id,
+      })
       .eq("id", boardId);
 
     if (error) {

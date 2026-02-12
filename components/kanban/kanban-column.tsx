@@ -137,7 +137,7 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
   }
 
   const cardIds = useMemo(() => {
-    return column.cards.map((card) => card.id)
+    return column.cards?.map((card) => card.id) || []
   }, [column.cards])
 
   return (
@@ -185,7 +185,7 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
         >
           <div className="max-h-[434px] flex flex-col overflow-auto scrollbar-custom gap-2 px-2 pb-1 pr-1">
             <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-              {column.cards.map((card) => {
+              {column.cards?.map((card) => {
                 return <KanbanCard key={card.id} card={card} />;
               })}
             </SortableContext>

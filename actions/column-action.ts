@@ -9,9 +9,22 @@ export async function createColumn({
 }: { boardId: string, title: string }): Promise<{ success: boolean; error?: string, data?: Column }> {
   try {
     const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "You must be logged in to create a board",
+      };
+    }
+
     const { data, error } = await supabase.from("columns").insert({
       board_id: boardId,
-      title: title
+      title: title,
+      user_id: user.id,
     }).select().single();
     if (error) {
       return { success: false, error: error.message };
@@ -56,7 +69,10 @@ export async function updateColumn(columnId: string, updateData: Partial<Column>
     // TODO: Update this based on your actual database schema
     const { error } = await supabase
       .from("columns")
-      .update(updateData)
+      .update({
+        ...updateData,
+        user_id: user.id,
+      })
       .eq("id", columnId);
 
     if (error) {

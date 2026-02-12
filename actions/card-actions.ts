@@ -68,21 +68,25 @@ export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCard
     const res1 = supabase
       .from("columns")
       .update({
-        card_order_ids: updateData.prevCardOrderIds
+        card_order_ids: updateData.prevCardOrderIds,
+        user_id: user.id,
       })
       .eq("id", updateData.prevColumnId);
       
     const res2 = supabase
       .from("columns")
       .update({
-        card_order_ids: updateData.nextCardOrderIds
+        card_order_ids: updateData.nextCardOrderIds,
+        user_id: user.id,
       })
       .eq("id", updateData.nextColumnId);
 
     const res3 = supabase
       .from("cards")
       .update({
-        column_id: updateData.nextColumnId
+        column_id: updateData.nextColumnId,
+        new_index: updateData.nextCardOrderIds.indexOf(updateData.currentCardId),
+        owner_id: user.id,
       })
       .eq("id", updateData.currentCardId);
 
@@ -99,9 +103,25 @@ export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCard
 export async function updateCard(cardId: string, updateData: Partial<Card>) {
   try {
     const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "You must be logged in to create a board",
+      };
+    }
+
     const { error, data } = await supabase
       .from("cards")
-      .update(updateData)
+      .update({
+        ...updateData,
+        owner_id: user.id,
+      })
       .eq("id", cardId)
       .select()
       .single();

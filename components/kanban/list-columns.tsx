@@ -9,12 +9,11 @@ import { Input } from "../ui/input";
 import { useEffect, useState } from "react";
 import { generatePlaceholderCard } from "@/utils/formatters";
 // import { cloneDeep } from "lodash";
-import { createColumn } from "@/actions/column-action";
 import { useBoardStore } from "@/stores/board-store";
 import CardDetail from "@/app/boards/[id]/_components/card/card-detail";
 
 export function ListColumns({ columns }: { columns: Board["columns"] }) {
-  const { currentActiveBoard, setCurrentActiveBoard, subscribeToBoard, subscribeToColumn } = useBoardStore()
+  const { currentActiveBoard, setCurrentActiveBoard, subscribeToBoard, subscribeToColumn, subscribeToCard } = useBoardStore()
   // const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(null);
   // SortableContent yêu cầu items dạng ['id-1', 'id-2'] chứ không phải [{id: 'id-1', id: 'id-2'}]
   // nếu không đúng thì vẫn kéo thả được nhưng không có animation
@@ -27,10 +26,6 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
 
   const addNewColumn = async () => {
     if (!newColumnTitle) {
-      // không cho tạo nếu title trống
-      // toast("Vui lòng nhập tên cột", {
-      //     description: "Không thể tạo cột với tên trống.",
-      //   })
       alert("Column title is required")
       return
     }
@@ -39,38 +34,27 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
       title: newColumnTitle
     }
 
-    const { data: createdColumn } = await createColumn({
-      ...newColumnData,
-      boardId: currentActiveBoard?.id as string, // boardId tạm thời để trống vì chưa có Redux store
+    const res = await fetch("/api/columns", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...newColumnData,
+        boardId: currentActiveBoard?.id,
+      }),
     })
+    const data = await res.json()
+    const createdColumn: Column | null = data?.success ? data.data : null
 
     if (createdColumn) {
       createdColumn.cards = [generatePlaceholderCard(createdColumn as Column)]
       createdColumn.cardOrderIds = [generatePlaceholderCard(createdColumn as Column).id]
     }
-    // tự làm lại state Board thay vì gọi lại fetchBoardAPI
-    /**
-     * Đoạn này sẽ dính lỗi object is not extensible bởi dù đã copy/clone giá trị newBoard nhưng bản chất của
-     * spread operator là Shallow Copy/Clone nên dính phải rules Immutability trong Redux Toolkit, không được
-     * dùng hàm push (sửa giá trị trực tiếp), cách đơn giản nhanh gọn nhất ở trường hợp này của  chúng ta là
-     * dùng tới Deep Copy/Clone toàn bộ cái Board cho dễ hiểu và code ngắn gọn
-     */
+
     const newBoard = { ...currentActiveBoard }
     newBoard.columns?.push(createdColumn as Column)
     newBoard.columnOrderIds?.push(createdColumn?.id as string)
-
-    /**
-     * Ngoài cách đó ra thì vẫn có thể dùng array.concat thay cho push như docs của Redux Toolkit ở trên vì push
-     * như đã nói nó sẽ thay đổi giá trị mảng trực tiếp, còn thằng concat thì nó merge - ghép mảng lại và tạo ra
-     * một mảng mới để chúng ta gán lại giá trị nên không vấn đề gì
-     */
-    // const newBoard = { ...board }
-    // newBoard.columns = newBoard.columns.concat([createdColumn])
-    // newBoard.columnOrderIds = newBoard.columnOrderIds.concat([createdColumn._id])
-
-    // setBoard(newBoard)
-    // Cập nhật dữ liệu trong Redux (Redux store)
-    // setCurrentActiveProject(newProject as typeof currentActiveProject)
     setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
 
     toggleOpenNewColumnForm()
@@ -90,6 +74,8 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
     if (currentActiveBoard?.id) {
       subscribeToBoard(currentActiveBoard.id);
       subscribeToColumn(currentActiveBoard.id)
+      subscribeToCard(currentActiveBoard.id)
+
     }
   }, [currentActiveBoard?.id, subscribeToBoard]);
 

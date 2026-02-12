@@ -56,6 +56,8 @@ export async function addCardActivity(
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+  console.log("board id in action:", boardId);
+
   if (authError || !user) {
     throw new Error("You must be logged in to add an activity");
   }

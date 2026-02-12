@@ -157,7 +157,7 @@ const mockCardData: CardData = {
 }
 
 export default function CardDetail() {
-  const { currentActiveCard, setCurrentActiveCard, subscribeToCard } = useCardStore()
+  const { currentActiveCard, setCurrentActiveCard, subscribeToActivity } = useCardStore()
   const { currentActiveBoard, setCurrentActiveBoard, updateCardInBoard } = useBoardStore()  
 
   const handleOpenChanege = (isOpen: boolean) => {
@@ -188,9 +188,9 @@ export default function CardDetail() {
   useEffect(() => {
     if (currentActiveCard) {
       // Subscribe to card updates
-      subscribeToCard(currentActiveCard.id as string)
+      subscribeToActivity(currentActiveCard.id as string)
     }
-  }, [currentActiveCard, currentActiveCard?.id, subscribeToCard])
+  }, [currentActiveCard?.id, subscribeToActivity])
 
   return (
     <Dialog open={!!currentActiveCard} onOpenChange={handleOpenChanege}>
@@ -216,7 +216,7 @@ export default function CardDetail() {
                 type="checkbox" 
                 className="mt-1 h-5 w-5 rounded border-gray-300"
               />
-              <ToggleFocusInput style={{ fontSize: 20 }} value={currentActiveCard?.title as string} onChangedValue={handleChangeCardTitle} />
+              <ToggleFocusInput style={{ fontSize: 20 }} value={currentActiveCard?.title as string || ""} onChangedValue={handleChangeCardTitle} />
             </div>
 
             {/* Action buttons */}

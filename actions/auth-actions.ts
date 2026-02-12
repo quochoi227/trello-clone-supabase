@@ -32,3 +32,15 @@ export async function signUpAction(formData: FormData) {
 
   redirect("/auth/sign-up-success");
 }
+
+export async function getUserAction() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error) {
+    return { error: error.message };
+  }
+  return { user };
+}

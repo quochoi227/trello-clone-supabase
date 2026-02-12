@@ -5,6 +5,8 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface BoardStore {
   boardChannel: RealtimeChannel | null;
+  columnChannel: RealtimeChannel | null;
+  cardChannel: RealtimeChannel | null;
   currentActiveBoard: Board | null;
   setCurrentActiveBoard: (board: Board | null) => void;
   updateCardInBoard: (updatedCard: Card) => void;
@@ -15,4 +17,6 @@ export interface BoardStore {
   unsubscribeFromBoard: () => void;
   subscribeToColumn: (columnId: string) => void;
   unsubscribeFromColumn: () => void;
+  subscribeToCard: (cardId: string) => void;
+  unsubscribeFromCard: () => void;
 }

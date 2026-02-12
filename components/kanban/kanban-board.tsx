@@ -34,7 +34,9 @@ import { ActivityWithUser } from "@/types/activity";
 export interface Card {
   id: string;
   boardId: string;
+  board_id?: string;
   columnId: string;
+  column_id?: string;
   title?: string;
   description?: string | null;
   cover?: string | null;
@@ -44,6 +46,8 @@ export interface Card {
   activities?: ActivityWithUser[];
   attachments?: string[];
   FE_PlaceholderCard?: boolean;
+  owner_id?: string;
+  new_index?: number;
 }
 
 export interface Column {
@@ -51,7 +55,9 @@ export interface Column {
   boardId: string;
   title: string;
   cardOrderIds: string[];
+  card_order_ids?: string[];
   cards: Card[];
+  user_id?: string;
 }
 
 export interface Board {
@@ -62,7 +68,9 @@ export interface Board {
   ownerIds: string[];
   memberIds: string[];
   columnOrderIds: string[];
+  column_order_ids?: string[];
   columns: Column[];
+  user_id?: string;
 }
 
 interface KanbanBoardProps {
@@ -121,6 +129,11 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     triggerFrom: 'handleDragOver' | 'handleDragEnd'
   ): void => {
     let nextColumns: Column[] = []
+    if (overColumn.cards[0]?.FE_PlaceholderCard) {
+      // Remove placeholder card nếu có
+      overColumn.cards = []
+      overColumn.cardOrderIds = []
+    }
     
     setOrderedColumns((prevColumns) => {
       // tìm vị trí của active card sắp được thả
@@ -271,37 +284,39 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
 
     const dndOrderedColumnIds = dndOrderedColumns.map(c => c.id)
     // Không vi phạm Immutability của Redux
-    const newProject = { ...board }
+    const newProject = { ...currentActiveBoard }
     newProject.columns = dndOrderedColumns
     newProject.columnOrderIds = dndOrderedColumnIds
     // setBoard(newBoard)
-    // setCurrentActiveBoard(newProject as typeof currentActiveBoard)
-
+    
     setCurrentActiveBoard(newProject as typeof currentActiveBoard)
+    // setCurrentActiveBoard(newProject as typeof currentActiveBoard)
     // Gọi API xử lý phía BE
     // mảng gửi về BE không được có placeholder
     const prevCardOrderIds = dndOrderedColumns.find((column) => column.id === prevColumnId)?.cardOrderIds
+    const clonedPrevCardOrderIds = [...prevCardOrderIds!] as string[] | undefined
     if (prevCardOrderIds?.[0].includes('placeholder-card')) {
-      prevCardOrderIds.shift()
+      clonedPrevCardOrderIds?.shift()
     }
 
     const nextCardOrderIds = dndOrderedColumns.find((column) => column.id === nextColumnId)?.cardOrderIds
+    const clonedNextCardOrderIds = [...nextCardOrderIds!] as string[] | undefined
     if (nextCardOrderIds?.[0].includes('placeholder-card')) {
-      nextCardOrderIds.shift()
+      clonedNextCardOrderIds?.shift()
     }
     // moveCardToDifferentColumnAPI({
-    //   currentCardId,
-    //   prevColumnId,
-    //   prevCardOrderIds,
-    //   nextColumnId,
-    //   nextCardOrderIds
-    // })
+      //   currentCardId,
+      //   prevColumnId,
+      //   prevCardOrderIds,
+      //   nextColumnId,
+      //   nextCardOrderIds
+      // })
     moveCardToDifferentColumnAction({
       currentCardId: currentCardId as string,
       prevColumnId: prevColumnId as string,
-      prevCardOrderIds: prevCardOrderIds as string[],
+      prevCardOrderIds: clonedPrevCardOrderIds as string[],
       nextColumnId: nextColumnId as string,
-      nextCardOrderIds: nextCardOrderIds as string[]
+      nextCardOrderIds: clonedNextCardOrderIds as string[]
     })
   }
 

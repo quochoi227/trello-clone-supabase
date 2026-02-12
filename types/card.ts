@@ -5,6 +5,6 @@ export interface CardStore {
   cardChannel: RealtimeChannel | null;
   currentActiveCard: Card | null;
   setCurrentActiveCard: (card: Card | null) => void;
-  subscribeToCard: (cardId: string) => void;
-  unsubscribeFromCard: () => void;
+  subscribeToActivity: (cardId: string) => void;
+  unsubscribeFromActivity: () => void;
 }

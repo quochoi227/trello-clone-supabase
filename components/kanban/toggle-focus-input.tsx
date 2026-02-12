@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '../ui/input'
 
 // Một Trick xử lý css khá hay trong việc làm UI UX khi cần ẩn hiện một cái input: Hiểu đơn giản là thay vì phải tạo biến State để chuyển đổi qua lại giữa thẻ Input và Text thông thường thì chúng ta sẽ CSS lại cho cái thẻ Input trông như text bình thường, chỉ khi click và focus vào nó thì style lại trở về như cái input ban đầu.
@@ -28,6 +28,10 @@ function ToggleFocusInput({ value, onChangedValue, ...props }: IProps) {
     // Khi giá trị có thay đổi ok thì gọi lên func ở Props cha để xử lý
     onChangedValue(inputValue)
   }
+
+  useEffect(() => {
+    setInputValue(value)
+  }, [value])
 
   return (
     <Input
