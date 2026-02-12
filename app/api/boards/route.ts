@@ -1,5 +1,20 @@
-import { createBoard } from "@/actions/board-actions";
+import { createBoard, fetchUserBoards } from "@/actions/board-actions";
 import { NextResponse } from "next/server";
+
+export async function GET() {
+  try {
+    const { success, data, error } = await fetchUserBoards();
+    if (!success) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    return NextResponse.json(
+      { error },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {

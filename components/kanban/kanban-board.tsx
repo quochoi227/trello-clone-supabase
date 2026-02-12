@@ -353,23 +353,25 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
         const oldCardIndex = oldColumn?.cards?.findIndex((card) => card.id === activeDragItemId)
         const newCardIndex = overColumn?.cards?.findIndex((card) => card.id === overCardId)
 
-        // dùng arrayMove cho card trong cùng column tương tự như kéo column trong cùng project
-        const dndOrderedCards = arrayMove(oldColumn?.cards as Card[], oldCardIndex as number, newCardIndex)
-        const dndOrderedCardIds = dndOrderedCards.map((card) => card.id)
-        setOrderedColumns((prevColumns) => {
-          // clone mảng orderedColumns ra 1 mảng mới
-          const nextColumns = cloneDeep(prevColumns)
-
-          const targetColumn = nextColumns.find((column) => column.id === overColumn.id)
-          if (targetColumn) {
-            targetColumn.cards = dndOrderedCards
-          }
-          if (targetColumn) {
-            targetColumn.cardOrderIds = dndOrderedCardIds
-          }
-          return nextColumns
-        })
-        moveCardInTheSameColumn(dndOrderedCards, dndOrderedCardIds, oldColumn?.id)
+        if (oldCardIndex !== newCardIndex) {
+          // dùng arrayMove cho card trong cùng column tương tự như kéo column trong cùng project
+          const dndOrderedCards = arrayMove(oldColumn?.cards as Card[], oldCardIndex as number, newCardIndex)
+          const dndOrderedCardIds = dndOrderedCards.map((card) => card.id)
+          setOrderedColumns((prevColumns) => {
+            // clone mảng orderedColumns ra 1 mảng mới
+            const nextColumns = cloneDeep(prevColumns)
+  
+            const targetColumn = nextColumns.find((column) => column.id === overColumn.id)
+            if (targetColumn) {
+              targetColumn.cards = dndOrderedCards
+            }
+            if (targetColumn) {
+              targetColumn.cardOrderIds = dndOrderedCardIds
+            }
+            return nextColumns
+          })
+          moveCardInTheSameColumn(dndOrderedCards, dndOrderedCardIds, oldColumn?.id)
+        }
       }
     } else if (activeDragItemType == ACTIVE_DRAG_ITEM_TYPE.COLUMN && active.id !== over.id) {
       const oldColumnIndex = orderedColumns.findIndex((column) => column.id === active.id)

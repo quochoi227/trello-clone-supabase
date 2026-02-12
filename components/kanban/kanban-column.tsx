@@ -40,6 +40,8 @@ interface KanbanColumnProps {
 export function KanbanColumn({ column }: KanbanColumnProps) {
   const { currentActiveBoard, setCurrentActiveBoard } = useBoardStore()
 
+  
+
   const {
     attributes,
     listeners,

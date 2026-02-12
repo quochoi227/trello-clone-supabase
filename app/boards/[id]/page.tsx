@@ -15,7 +15,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="h-full p-3">
+    <div className="h-full p-3 pb-2">
       <KanbanBoard initialData={board} />
     </div>
   );

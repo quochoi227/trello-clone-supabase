@@ -3,7 +3,7 @@ import type { BoardStore } from "@/types/board.ts";
 import { createClient } from "@/lib/supabase/client";
 import { mapOrder } from "@/utils/sorts";
 import { Board, Card, Column } from "@/components/kanban";
-import { generatePlaceholderCard } from "@/utils/formatters";
+import { generatePlaceholderCard, generateScaffoldCard } from "@/utils/formatters";
 import { RealtimePostgresDeletePayload, RealtimePostgresInsertPayload, RealtimePostgresUpdatePayload } from "@supabase/supabase-js";
 import { useCardStore } from "./card-store";
 
@@ -248,6 +248,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             filter: `board_id=eq.${boardId}` },
           (payload: RealtimePostgresInsertPayload<Card>) => {
             const { new: newRecord } = payload
+            const newCard = generateScaffoldCard(payload)
             if (user?.id === newRecord.owner_id) {
               console.log("Updated card from own action, ignoring")
               return
@@ -255,22 +256,36 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
             // Handle real-time insert card if needed
             const targetColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.column_id)
-            if (targetColumn?.cardOrderIds?.[0].includes("placeholder-card")) {
-              targetColumn.cards = []
-              targetColumn.cardOrderIds = []
+            if (!targetColumn) return
+            
+            let newCards: Card[]
+            let newCardOrderIds: string[]
+            if (targetColumn.cardOrderIds?.[0]?.includes("placeholder-card")) {
+              // Thay thế placeholder card
+              newCards = [newCard as Card]
+              newCardOrderIds = [newCard.id]
+            } else {
+              // Tạo mảng mới (immutable) thay vì push
+              newCards = [...targetColumn.cards, newCard as Card]
+              newCardOrderIds = [...targetColumn.cardOrderIds, newCard.id]
             }
-            if (targetColumn) {
-              targetColumn.cards.push(newRecord)
-              targetColumn.cardOrderIds!.push(newRecord.id)
-              set((state) => ({
-                currentActiveBoard: {
-                  ...state.currentActiveBoard!,
-                  columns: state.currentActiveBoard!.columns.map(col =>
-                    col.id === targetColumn.id ? targetColumn : col
-                  ),
-                } as typeof state.currentActiveBoard,
-              }))
+
+            // Tạo column object mới hoàn toàn
+            const updatedColumn: Column = {
+              ...targetColumn,
+              cards: newCards,
+              cardOrderIds: newCardOrderIds,
+              card_order_ids: newCardOrderIds,
             }
+
+            set((state) => ({
+              currentActiveBoard: {
+                ...state.currentActiveBoard!,
+                columns: state.currentActiveBoard!.columns.map(col =>
+                  col.id === updatedColumn.id ? updatedColumn : col
+                ),
+              } as typeof state.currentActiveBoard,
+            }))
           }
         )
         .on(
@@ -293,39 +308,61 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             if (oldRecord.column_id !== newRecord.column_id) {
               // Xóa thẻ khỏi cột cũ
               const oldColumn = get().currentActiveBoard?.columns.find(col => col.id === oldRecord.column_id)
-              
-
               const targetCard = oldColumn?.cards.find(card => card.id === newRecord.id)
+              
+              // Tạo oldColumn mới (immutable)
+              let updatedOldColumn: Column | undefined
+
+
               if (oldColumn) {
-                oldColumn.cards = oldColumn.cards.filter(card => card.id !== oldRecord.id)
-                oldColumn.cardOrderIds = oldColumn.cardOrderIds?.filter(id => id !== oldRecord.id)
-                oldColumn.card_order_ids = oldColumn.cardOrderIds
-                console.log("After removing card, oldColumn:", oldColumn)
-                // if (oldColumn.cardOrderIds?.[0].includes("placeholder-card")) {
-                //   const placeholderCard = generatePlaceholderCard(oldColumn)
-                //   oldColumn.cards = [placeholderCard]
-                //   oldColumn.cardOrderIds = [placeholderCard.id]
-                // }
+                let filteredCards = oldColumn.cards.filter(card => card.id !== oldRecord.id)
+                let filteredCardOrderIds = oldColumn.cardOrderIds?.filter(id => id !== oldRecord.id)
+
+                if (filteredCardOrderIds.length === 0) {
+                  const placeholderCard = generatePlaceholderCard(oldColumn)
+                  filteredCards = [placeholderCard]
+                  filteredCardOrderIds = [placeholderCard.id]
+                }
+
+                updatedOldColumn = {
+                  ...oldColumn,
+                  cards: filteredCards,
+                  cardOrderIds: filteredCardOrderIds,
+                  card_order_ids: filteredCardOrderIds,
+                }
               }
 
-              // Tìm ra thẻ hiện tại
-
-              // Thêm thẻ vào cột mới
+              // Tạo newColumn mới (immutable)
+              let updatedNewColumn: Column | undefined
               const newColumn = get().currentActiveBoard?.columns.find(col => col.id === newRecord.column_id)
               if (newColumn) {
-                newColumn.cards?.splice(newRecord.new_index as number, 0, targetCard as Card)
-                newColumn.cardOrderIds?.splice(newRecord.new_index as number, 0, newRecord.id)
-                newColumn.card_order_ids = newColumn.cardOrderIds
-                console.log("After adding card, newColumn:", newColumn)
+                let baseCards = [...newColumn.cards]
+                let baseCardOrderIds = [...newColumn.cardOrderIds]
+
+                if (baseCardOrderIds.length === 0 || baseCardOrderIds?.[0]?.includes("placeholder-card")) {
+                  baseCards = []
+                  baseCardOrderIds = []
+                }
+
+                // Splice vào mảng copy
+                baseCards.splice(newRecord.new_index as number, 0, targetCard as Card)
+                baseCardOrderIds.splice(newRecord.new_index as number, 0, newRecord.id)
+
+                updatedNewColumn = {
+                  ...newColumn,
+                  cards: baseCards,
+                  cardOrderIds: baseCardOrderIds,
+                  card_order_ids: baseCardOrderIds,
+                }
               }
               
               set((state) => ({
                 currentActiveBoard: {
                   ...state.currentActiveBoard!,
                   columns: state.currentActiveBoard!.columns.map(col => {
-                    if (col.id === oldRecord.column_id) return oldColumn!;
-                    if (col.id === newRecord.column_id) return newColumn!;
-                    return col;
+                    if (col.id === oldRecord.column_id && updatedOldColumn) return updatedOldColumn
+                    if (col.id === newRecord.column_id && updatedNewColumn) return updatedNewColumn
+                    return col
                   }),
                 } as typeof state.currentActiveBoard,
               }))
@@ -373,13 +410,17 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
             const targetColumn = get().currentActiveBoard?.columns.find(col => col.cardOrderIds?.includes(oldRecord.id as string))
             if (targetColumn) {
-              targetColumn.cards = targetColumn.cards.filter(card => card.id !== oldRecord.id)
-              targetColumn.cardOrderIds = targetColumn.cardOrderIds?.filter(id => id !== oldRecord.id)
+              const updatedColumn: Column = {
+                ...targetColumn,
+                cards: targetColumn.cards.filter(card => card.id !== oldRecord.id),
+                cardOrderIds: targetColumn.cardOrderIds?.filter(id => id !== oldRecord.id),
+              }
+
               set((state) => ({
                 currentActiveBoard: {
                   ...state.currentActiveBoard!,
                   columns: state.currentActiveBoard!.columns.map(col =>
-                    col.id === targetColumn.id ? targetColumn : col
+                    col.id === updatedColumn.id ? updatedColumn : col
                   ),
                 } as typeof state.currentActiveBoard,
               }))
