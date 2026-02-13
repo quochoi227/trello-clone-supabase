@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import randomcolor from "randomcolor";
 
 interface BoardCardProps {
   id: string;
@@ -15,7 +14,7 @@ export function BoardCard({
   id,
   title,
   coverImage,
-  backgroundColor = randomcolor(),
+  backgroundColor
 }: BoardCardProps) {
   const isGradient = backgroundColor?.startsWith("linear-gradient");
   
@@ -23,7 +22,7 @@ export function BoardCard({
     <Link href={`/boards/${id}`}>
       <Card className="group overflow-hidden cursor-pointer h-full shadow-[0px_1px_1px_#1E1F2140,_0px_0px_1px_#1E1F214F]">
         <div
-          className="h-24 w-full bg-cover bg-center relative"
+          className="h-24 w-full bg-cover bg-center relative bg-muted-foreground"
           style={{
             backgroundImage: coverImage
               ? `url(${coverImage})`

@@ -6,11 +6,53 @@ import { KanbanColumn } from "./kanban-column";
 import { Button } from "../ui/button";
 import { CirclePlus, X } from "lucide-react";
 import { Input } from "../ui/input";
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useOptimistic, useState } from "react";
 import { generatePlaceholderCard } from "@/utils/formatters";
 // import { cloneDeep } from "lodash";
 import { useBoardStore } from "@/stores/board-store";
 import CardDetail from "@/app/boards/[id]/_components/card/card-detail";
+import { createColumn } from "@/actions/column-action";
+import { toast } from "sonner";
+
+type OptimisticColumnAction =
+  | { type: "add"; column: Column }
+  | { type: "replace"; tempId: string; column: Column }
+  | { type: "remove"; tempId: string };
+
+const withPlaceholderCard = (column: Column): Column => {
+  if (column.cards?.length) {
+    return {
+      ...column,
+      cardOrderIds: column.cardOrderIds?.length
+        ? column.cardOrderIds
+        : column.cards.map((card) => card.id),
+    };
+  }
+
+  const placeholder = generatePlaceholderCard(column);
+  return {
+    ...column,
+    cards: [placeholder],
+    cardOrderIds: [placeholder.id],
+  };
+};
+
+const normalizeCreatedColumn = (rawColumn: Partial<Column> & { board_id?: string; card_order_ids?: string[] }, boardId: string): Column => {
+  return {
+    ...(rawColumn as Column),
+    boardId: rawColumn.boardId ?? rawColumn.board_id ?? boardId,
+    cards: rawColumn.cards ?? [],
+    cardOrderIds: rawColumn.cardOrderIds ?? rawColumn.card_order_ids ?? [],
+  };
+};
+
+const dedupeColumnsById = (items: Column[]): Column[] => {
+  const map = new Map<string, Column>();
+  items.forEach((item) => {
+    map.set(item.id, item);
+  });
+  return Array.from(map.values());
+};
 
 export function ListColumns({ columns }: { columns: Board["columns"] }) {
   const { currentActiveBoard, setCurrentActiveBoard, subscribeToBoard, subscribeToColumn, subscribeToCard } = useBoardStore()
@@ -19,114 +61,97 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
   // nếu không đúng thì vẫn kéo thả được nhưng không có animation
   const [openNewColumnForm, setOpenNewColumnForm] = useState<boolean>(false)
   const [newColumnTitle, setNewColumnTitle] = useState<string>('')
+  const [isCreatingColumn, setIsCreatingColumn] = useState(false)
+  const [optimisticColumns, dispatchOptimisticColumn] = useOptimistic(
+    columns,
+    (state: Column[], action: OptimisticColumnAction) => {
+      if (action.type === "add") {
+        return dedupeColumnsById([...state, action.column]);
+      }
+
+      if (action.type === "replace") {
+        const withoutTemp = state.filter((column) => column.id !== action.tempId);
+        return dedupeColumnsById([...withoutTemp, action.column]);
+      }
+
+      return state.filter((column) => column.id !== action.tempId);
+    }
+  )
+
   const toggleOpenNewColumnForm = () => {
     setOpenNewColumnForm(!openNewColumnForm)
     setNewColumnTitle('')
   }
 
-  // const addNewColumn = async () => {
-  //   if (!newColumnTitle) {
-  //     alert("Column title is required")
-  //     return
-  //   }
-
-  //   const newColumnData = {
-  //     title: newColumnTitle
-  //   }
-
-  //   const res = await fetch("/api/columns", {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //     },
-  //     body: JSON.stringify({
-  //       ...newColumnData,
-  //       boardId: currentActiveBoard?.id,
-  //     }),
-  //   })
-  //   const data = await res.json()
-  //   const createdColumn: Column | null = data?.success ? data.data : null
-
-  //   if (createdColumn) {
-  //     createdColumn.cards = [generatePlaceholderCard(createdColumn as Column)]
-  //     createdColumn.cardOrderIds = [generatePlaceholderCard(createdColumn as Column).id]
-  //   }
-
-  //   const newBoard = { ...currentActiveBoard }
-  //   newBoard.columns?.push(createdColumn as Column)
-  //   newBoard.columnOrderIds?.push(createdColumn?.id as string)
-  //   setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
-
-  //   toggleOpenNewColumnForm()
-  //   setNewColumnTitle('')
-  // }
-
   const addNewColumn = async () => {
     if (!newColumnTitle?.trim() || !currentActiveBoard) {
-      alert("Column title is required")
+      toast.error("Column title is required")
       return
     }
 
     const title = newColumnTitle.trim()
-    const snapshotBoard = currentActiveBoard
+    const boardId = currentActiveBoard.id
     const tempId = `temp-${crypto.randomUUID()}`
 
-    const optimisticColumn = {
+    const optimisticColumn = withPlaceholderCard({
       id: tempId,
       title,
-      boardId: currentActiveBoard.id,
+      boardId,
       cards: [],
       cardOrderIds: []
-    } as Column
+    } as Column)
 
-    // placeholder card nếu bạn đang dùng rule này
-    const placeholder = generatePlaceholderCard(optimisticColumn)
-    optimisticColumn.cards = [placeholder]
-    optimisticColumn.cardOrderIds = [placeholder.id]
-
-    // 1) Optimistic update
-    setCurrentActiveBoard({
-      ...currentActiveBoard,
-      columns: [...(currentActiveBoard.columns || []), optimisticColumn],
-      columnOrderIds: [...(currentActiveBoard.columnOrderIds || []), tempId]
-    } as typeof currentActiveBoard)
+    startTransition(() => {
+      dispatchOptimisticColumn({ type: "add", column: optimisticColumn })
+    })
+    setIsCreatingColumn(true)
 
     // UX: đóng form ngay
     toggleOpenNewColumnForm()
     setNewColumnTitle("")
 
     try {
-      // 2) Persist
-      const res = await fetch("/api/columns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, boardId: currentActiveBoard.id })
+      const { success, error, data } = await createColumn({ title, boardId })
+      if (!success || !data) {
+        throw new Error(error || "Create column failed")
+      }
+
+      const createdColumn = withPlaceholderCard(
+        normalizeCreatedColumn(data as Partial<Column> & { board_id?: string; card_order_ids?: string[] }, boardId)
+      )
+
+      startTransition(() => {
+        dispatchOptimisticColumn({
+          type: "replace",
+          tempId,
+          column: createdColumn,
+        })
       })
-      const data = await res.json()
-      const createdColumn: Column | null = data?.success ? data.data : null
-      if (!res.ok || !createdColumn) throw new Error(data?.error || "Create column failed")
 
-      const createdPlaceholder = generatePlaceholderCard(createdColumn)
-      createdColumn.cards = [createdPlaceholder]
-      createdColumn.cardOrderIds = [createdPlaceholder.id]
-
-      // 3) Replace temp -> real
       const latestBoard = useBoardStore.getState().currentActiveBoard
       if (!latestBoard) return
 
+      const mergedColumns = dedupeColumnsById([
+        ...(latestBoard.columns || []),
+        createdColumn,
+      ]);
+
+      const mergedColumnOrderIds = Array.from(
+        new Set([...(latestBoard.columnOrderIds || []), createdColumn.id])
+      );
+
       setCurrentActiveBoard({
         ...latestBoard,
-        columns: (latestBoard.columns || []).map((c) =>
-          c.id === tempId ? createdColumn : c
-        ),
-        columnOrderIds: (latestBoard.columnOrderIds || []).map((id) =>
-          id === tempId ? createdColumn.id : id
-        )
+        columns: mergedColumns,
+        columnOrderIds: mergedColumnOrderIds
       } as typeof currentActiveBoard)
     } catch (e) {
-      // 4) Rollback
-      setCurrentActiveBoard(snapshotBoard as typeof currentActiveBoard)
-      alert(e instanceof Error ? e.message : "Failed to create column")
+      startTransition(() => {
+        dispatchOptimisticColumn({ type: "remove", tempId })
+      })
+      toast.error(e instanceof Error ? e.message : "Failed to create column")
+    } finally {
+      setIsCreatingColumn(false)
     }
   }
 
@@ -146,14 +171,14 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
       subscribeToCard(currentActiveBoard.id)
 
     }
-  }, [currentActiveBoard?.id, subscribeToBoard]);
+  }, [currentActiveBoard?.id, subscribeToBoard, subscribeToColumn, subscribeToCard]);
 
-  const columnIds = columns?.map((column) => column.id)
+  const columnIds = optimisticColumns?.map((column) => column.id)
 
   return (
     <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
       <div className="w-full h-full flex gap-4 overflow-x-auto pb-4 scrollbar-custom">
-        {columns.map((column) => (
+        {optimisticColumns.map((column) => (
           <KanbanColumn key={column.id} column={column}  />
         ))}
         {!openNewColumnForm
@@ -178,6 +203,7 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
             <div className="flex items-center gap-1">
               <Button
                 className="interceptor-loading"
+                disabled={isCreatingColumn}
                 onClick={addNewColumn}
               >
                 Add column
