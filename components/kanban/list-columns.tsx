@@ -24,41 +24,110 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
     setNewColumnTitle('')
   }
 
+  // const addNewColumn = async () => {
+  //   if (!newColumnTitle) {
+  //     alert("Column title is required")
+  //     return
+  //   }
+
+  //   const newColumnData = {
+  //     title: newColumnTitle
+  //   }
+
+  //   const res = await fetch("/api/columns", {
+  //     method: "POST",
+  //     headers: {
+  //       "Content-Type": "application/json",
+  //     },
+  //     body: JSON.stringify({
+  //       ...newColumnData,
+  //       boardId: currentActiveBoard?.id,
+  //     }),
+  //   })
+  //   const data = await res.json()
+  //   const createdColumn: Column | null = data?.success ? data.data : null
+
+  //   if (createdColumn) {
+  //     createdColumn.cards = [generatePlaceholderCard(createdColumn as Column)]
+  //     createdColumn.cardOrderIds = [generatePlaceholderCard(createdColumn as Column).id]
+  //   }
+
+  //   const newBoard = { ...currentActiveBoard }
+  //   newBoard.columns?.push(createdColumn as Column)
+  //   newBoard.columnOrderIds?.push(createdColumn?.id as string)
+  //   setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
+
+  //   toggleOpenNewColumnForm()
+  //   setNewColumnTitle('')
+  // }
+
   const addNewColumn = async () => {
-    if (!newColumnTitle) {
+    if (!newColumnTitle?.trim() || !currentActiveBoard) {
       alert("Column title is required")
       return
     }
 
-    const newColumnData = {
-      title: newColumnTitle
-    }
+    const title = newColumnTitle.trim()
+    const snapshotBoard = currentActiveBoard
+    const tempId = `temp-${crypto.randomUUID()}`
 
-    const res = await fetch("/api/columns", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...newColumnData,
-        boardId: currentActiveBoard?.id,
-      }),
-    })
-    const data = await res.json()
-    const createdColumn: Column | null = data?.success ? data.data : null
+    const optimisticColumn = {
+      id: tempId,
+      title,
+      boardId: currentActiveBoard.id,
+      cards: [],
+      cardOrderIds: []
+    } as Column
 
-    if (createdColumn) {
-      createdColumn.cards = [generatePlaceholderCard(createdColumn as Column)]
-      createdColumn.cardOrderIds = [generatePlaceholderCard(createdColumn as Column).id]
-    }
+    // placeholder card nếu bạn đang dùng rule này
+    const placeholder = generatePlaceholderCard(optimisticColumn)
+    optimisticColumn.cards = [placeholder]
+    optimisticColumn.cardOrderIds = [placeholder.id]
 
-    const newBoard = { ...currentActiveBoard }
-    newBoard.columns?.push(createdColumn as Column)
-    newBoard.columnOrderIds?.push(createdColumn?.id as string)
-    setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
+    // 1) Optimistic update
+    setCurrentActiveBoard({
+      ...currentActiveBoard,
+      columns: [...(currentActiveBoard.columns || []), optimisticColumn],
+      columnOrderIds: [...(currentActiveBoard.columnOrderIds || []), tempId]
+    } as typeof currentActiveBoard)
 
+    // UX: đóng form ngay
     toggleOpenNewColumnForm()
-    setNewColumnTitle('')
+    setNewColumnTitle("")
+
+    try {
+      // 2) Persist
+      const res = await fetch("/api/columns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, boardId: currentActiveBoard.id })
+      })
+      const data = await res.json()
+      const createdColumn: Column | null = data?.success ? data.data : null
+      if (!res.ok || !createdColumn) throw new Error(data?.error || "Create column failed")
+
+      const createdPlaceholder = generatePlaceholderCard(createdColumn)
+      createdColumn.cards = [createdPlaceholder]
+      createdColumn.cardOrderIds = [createdPlaceholder.id]
+
+      // 3) Replace temp -> real
+      const latestBoard = useBoardStore.getState().currentActiveBoard
+      if (!latestBoard) return
+
+      setCurrentActiveBoard({
+        ...latestBoard,
+        columns: (latestBoard.columns || []).map((c) =>
+          c.id === tempId ? createdColumn : c
+        ),
+        columnOrderIds: (latestBoard.columnOrderIds || []).map((id) =>
+          id === tempId ? createdColumn.id : id
+        )
+      } as typeof currentActiveBoard)
+    } catch (e) {
+      // 4) Rollback
+      setCurrentActiveBoard(snapshotBoard as typeof currentActiveBoard)
+      alert(e instanceof Error ? e.message : "Failed to create column")
+    }
   }
 
   const handleKeydown = (event: React.KeyboardEvent<HTMLInputElement>) => {

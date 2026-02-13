@@ -91,6 +91,7 @@ export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCard
       .eq("id", updateData.currentCardId);
 
     await Promise.all([res1, res2, res3]);
+    return { success: true };
   } catch (error) {
     console.error("Unexpected error updating board:", error);
     return {

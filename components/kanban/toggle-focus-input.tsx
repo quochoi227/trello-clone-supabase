@@ -40,7 +40,7 @@ function ToggleFocusInput({ value, onChangedValue, ...props }: IProps) {
       onBlur={triggerBlur}
       {...props}
       // Magic here :D
-      className='font-bold h-[30px] bg-transparent border-transparent focus:bg-white focus:border-primary px-3 shadow-none'
+      className='font-bold min-h-[30px] bg-transparent border-transparent focus:bg-white focus:border-primary px-3 shadow-none'
     />
   )
 }

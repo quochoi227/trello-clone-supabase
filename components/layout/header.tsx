@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, Bell, HelpCircle, Menu } from "lucide-react";
+import { Search, HelpCircle, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,14 +17,12 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Invitation } from "../invitation/invitation";
-import { InvitationWithDetails } from "@/types/invitation";
 import { ThemeSwitcher } from "../theme-switcher";
+import Invitations from "../invitations/invitations";
 // import { useBoardInvitationsRealtime } from "@/hooks/useBoardInvitationRealtime";
 
 
 export function Header() {
-  const [invitations, setInvitations] = useState<InvitationWithDetails[]>([]);
   const router = useRouter();
   
   const logout = async () => {
@@ -34,55 +31,7 @@ export function Header() {
     router.push("/auth/login");
   };
 
-  useEffect(() => {
-    fetch("/api/invitations")
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setInvitations(data);
-      });
-  }, []);
-
-  useEffect(() => {
-    const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let channel: any;
-
-    const setupRealtime = async () => {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      channel = supabase
-        .channel("board-invitations")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "board_invitations",
-            filter: `invitee_email=eq.${user.email}`,
-          },
-          (payload) => {
-            console.log("New invitation received (realtime)", payload);
-            // setInvitations((prev) => [payload.new as InvitationWithDetails, ...prev]);
-            fetch("/api/invitations")
-              .then(res => res.json())
-              .then(data => {
-                if (Array.isArray(data)) setInvitations(data);
-              });
-          }
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, []);
+  
 
   return (
     <header className="z-50 w-full border-b">
@@ -140,29 +89,7 @@ export function Header() {
         <div className="flex items-center gap-1">
           <ThemeSwitcher />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-              >
-                <Bell className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="space-y-1 w-[450px] max-w-[450px] p-4 scrollbar-custom">
-              {
-                invitations.length === 0 ? (
-                  <div className="p-4 text-sm text-muted-foreground">
-                    No new notifications
-                  </div>
-                ) :
-                  invitations.map((invite) => (
-                    <Invitation key={invite.id} invitation={invite} />
-                  ))
-              }
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Invitations />
 
           <Button
             variant="ghost"

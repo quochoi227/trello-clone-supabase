@@ -44,6 +44,7 @@ import CardActivities from "./card-activities"
 import CardDescription from "./card-description"
 import { Card } from "@/components/kanban"
 import { useEffect } from "react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 // Mock data structure
 interface Label {
@@ -211,12 +212,9 @@ export default function CardDetail() {
           {/* Left side - Card details */}
           <div className="flex-1 p-6 space-y-6 max-h-full overflow-y-auto scrollbar-custom">
             {/* Title with checkbox */}
-            <div className="flex items-start gap-3">
-              <input 
-                type="checkbox" 
-                className="mt-1 h-5 w-5 rounded border-gray-300"
-              />
-              <ToggleFocusInput style={{ fontSize: 20 }} value={currentActiveCard?.title as string || ""} onChangedValue={handleChangeCardTitle} />
+            <div className="flex items-center gap-2">
+              <Checkbox />
+              <ToggleFocusInput style={{ fontSize: 18 }} value={currentActiveCard?.title as string || ""} onChangedValue={handleChangeCardTitle} />
             </div>
 
             {/* Action buttons */}

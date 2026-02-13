@@ -17,7 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Input } from "../ui/input";
 import { useBoardStore } from "@/stores/board-store";
 import { cloneDeep } from "lodash";
-import { createCard } from "@/actions/card-actions";
+// import { createCard } from "@/actions/card-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,8 +39,6 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({ column }: KanbanColumnProps) {
   const { currentActiveBoard, setCurrentActiveBoard } = useBoardStore()
-
-  
 
   const {
     attributes,
@@ -85,10 +83,21 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
     }
 
     // gọi api tạo mới column và làm lại dữ liệu State Board
-    const { data: createdCard } = await createCard({
-      ...newCardData,
-      boardId: currentActiveBoard?.id as string,
+    // const { data: createdCard } = await createCard({
+    //   ...newCardData,
+    //   boardId: currentActiveBoard?.id as string,
+    // })
+    const res = await fetch('/api/cards', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...newCardData,
+        boardId: currentActiveBoard?.id as string,
+      }),
     })
+    const { data: createdCard } = await res.json()
 
     // console.log('Created card:', createdCard)
 
@@ -145,7 +154,7 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
   return (
     <div ref={setNodeRef} style={dndKitColumnStyles} className="h-full">
       <div {...attributes} className="flex flex-col w-[272px] bg-[#f1f2f4] dark:bg-slate-800 rounded-2xl">
-        <div className="h-[44px] flex items-center gap-2 p-2 pb-1.5">
+        <div className="h-[52px] flex items-center gap-2 p-2 pb-1.5">
           <ToggleFocusInput style={{ flex: 1 }} value={column.title} onChangedValue={(value) => {console.log(value)}} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

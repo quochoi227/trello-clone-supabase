@@ -26,7 +26,6 @@ import { MouseSensor, TouchSensor } from "@/lib/custom-lib/DndKitSensors";
 import { cloneDeep, isEmpty } from "lodash";
 import { generatePlaceholderCard } from "@/utils/formatters";
 import { updateBoard } from "@/actions/board-actions";
-import { moveCardToDifferentColumnAction } from "@/actions/card-actions";
 import { useBoardStore } from "@/stores/board-store";
 import { updateColumn } from "@/actions/column-action";
 import { ActivityWithUser } from "@/types/activity";
@@ -311,12 +310,18 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
       //   nextColumnId,
       //   nextCardOrderIds
       // })
-    moveCardToDifferentColumnAction({
-      currentCardId: currentCardId as string,
-      prevColumnId: prevColumnId as string,
-      prevCardOrderIds: clonedPrevCardOrderIds as string[],
-      nextColumnId: nextColumnId as string,
-      nextCardOrderIds: clonedNextCardOrderIds as string[]
+    fetch('/api/boards/supports/moving_card', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentCardId: currentCardId as string,
+        prevColumnId: prevColumnId as string,
+        prevCardOrderIds: clonedPrevCardOrderIds as string[],
+        nextColumnId: nextColumnId as string,
+        nextCardOrderIds: clonedNextCardOrderIds as string[]
+      })
     })
   }
 
