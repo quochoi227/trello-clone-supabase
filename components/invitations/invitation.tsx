@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { acceptBoardInvitation, declineBoardInvitation } from "@/actions/board-invitation-actions"
+import { declineBoardInvitation } from "@/actions/board-invitation-actions"
 import { InvitationWithDetails } from "@/types/invitation"
 import { Check, Clock3, X } from "lucide-react"
 
@@ -26,7 +26,10 @@ export function Invitation({ invitation, onResponse }: InvitationProps) {
   const handleAccept = async () => {
     setIsLoading(true)
     try {
-      await acceptBoardInvitation({ invitationId: invitation.id })
+      await fetch('/api/invitations/' + invitation.id + '/accept', {
+        method: 'PUT',
+        }
+      )
       setStatus("accepted")
       onResponse?.("accepted")
     } catch (error) {
@@ -51,7 +54,7 @@ export function Invitation({ invitation, onResponse }: InvitationProps) {
 
   return (
     <Card className="max-w-full border-border/80 bg-card/70 shadow-sm backdrop-blur-sm">
-      <CardHeader className="p-4 pb-2">
+      <CardHeader className="p-2 pb-1">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <Clock3 className="size-4 text-muted-foreground" />
@@ -71,15 +74,15 @@ export function Invitation({ invitation, onResponse }: InvitationProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 pt-0">
-        <CardDescription className="mt-1 text-sm leading-relaxed">
+      <CardContent className="p-2 pt-0">
+        <CardDescription className="mb-2 text-sm leading-relaxed">
           Someone invited you to join{" "}
           <span className="font-semibold text-foreground">
             {invitation.board?.title || "a board"}
           </span>
         </CardDescription>
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="flex items-center gap-2">
         {status === "pending" ? (
           <>
             <Button disabled={isLoading} onClick={handleAccept} size="xs" variant="default">

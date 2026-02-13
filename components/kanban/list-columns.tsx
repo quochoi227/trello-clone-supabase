@@ -11,7 +11,6 @@ import { generatePlaceholderCard } from "@/utils/formatters";
 // import { cloneDeep } from "lodash";
 import { useBoardStore } from "@/stores/board-store";
 import CardDetail from "@/app/boards/[id]/_components/card/card-detail";
-import { createColumn } from "@/actions/column-action";
 import { toast } from "sonner";
 
 type OptimisticColumnAction =
@@ -104,6 +103,24 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
     startTransition(() => {
       dispatchOptimisticColumn({ type: "add", column: optimisticColumn })
     })
+
+    const boardBeforeCreate = useBoardStore.getState().currentActiveBoard
+    if (boardBeforeCreate) {
+      const mergedColumns = dedupeColumnsById([
+        ...(boardBeforeCreate.columns || []),
+        optimisticColumn,
+      ])
+      const mergedColumnOrderIds = Array.from(
+        new Set([...(boardBeforeCreate.columnOrderIds || []), tempId])
+      )
+
+      setCurrentActiveBoard({
+        ...boardBeforeCreate,
+        columns: mergedColumns,
+        columnOrderIds: mergedColumnOrderIds,
+      } as typeof currentActiveBoard)
+    }
+
     setIsCreatingColumn(true)
 
     // UX: đóng form ngay
@@ -111,7 +128,21 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
     setNewColumnTitle("")
 
     try {
-      const { success, error, data } = await createColumn({ title, boardId })
+      // const { success, error, data } = await createColumn({ title, boardId })
+      const response = await fetch('/api/columns', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title, boardId }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create column")
+      }
+
+      const { success, error, data } = await response.json()
+      
       if (!success || !data) {
         throw new Error(error || "Create column failed")
       }
@@ -131,14 +162,15 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
       const latestBoard = useBoardStore.getState().currentActiveBoard
       if (!latestBoard) return
 
-      const mergedColumns = dedupeColumnsById([
-        ...(latestBoard.columns || []),
-        createdColumn,
-      ]);
-
-      const mergedColumnOrderIds = Array.from(
-        new Set([...(latestBoard.columnOrderIds || []), createdColumn.id])
+      const replacedColumns = (latestBoard.columns || []).map((column) =>
+        column.id === tempId ? createdColumn : column
       );
+      const mergedColumns = dedupeColumnsById(replacedColumns);
+
+      const replacedColumnOrderIds = (latestBoard.columnOrderIds || []).map((id) =>
+        id === tempId ? createdColumn.id : id
+      );
+      const mergedColumnOrderIds = Array.from(new Set(replacedColumnOrderIds));
 
       setCurrentActiveBoard({
         ...latestBoard,
@@ -149,6 +181,16 @@ export function ListColumns({ columns }: { columns: Board["columns"] }) {
       startTransition(() => {
         dispatchOptimisticColumn({ type: "remove", tempId })
       })
+
+      const latestBoard = useBoardStore.getState().currentActiveBoard
+      if (latestBoard) {
+        setCurrentActiveBoard({
+          ...latestBoard,
+          columns: latestBoard.columns.filter((column) => column.id !== tempId),
+          columnOrderIds: latestBoard.columnOrderIds.filter((id) => id !== tempId),
+        } as typeof currentActiveBoard)
+      }
+
       toast.error(e instanceof Error ? e.message : "Failed to create column")
     } finally {
       setIsCreatingColumn(false)

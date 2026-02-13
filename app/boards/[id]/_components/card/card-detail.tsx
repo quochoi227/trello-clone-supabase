@@ -25,7 +25,6 @@ import {
 } from "lucide-react"
 import { useCardStore } from "@/stores/card-store"
 import ToggleFocusInput from "@/components/kanban/toggle-focus-input"
-import { deleteCard, updateCard } from "@/actions/card-actions"
 import { useBoardStore } from "@/stores/board-store"
 
 import {
@@ -168,7 +167,17 @@ export default function CardDetail() {
   }
 
   const handleChangeCardTitle = async (newTitle: string) => {
-    const updateResult = await updateCard(currentActiveCard?.id as string, { title: newTitle })
+    // const updateResult = await updateCard(currentActiveCard?.id as string, { title: newTitle })
+    const response = await fetch(`/api/cards/${currentActiveCard?.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title: newTitle }),
+    })
+
+    const updateResult = await response.json()
+    
     if (updateResult) {
       updateCardInBoard(updateResult.data)
     }
@@ -176,7 +185,15 @@ export default function CardDetail() {
 
   const handleDeleteCard = async () => {
     // Implement delete card logic here
-    await deleteCard(currentActiveCard?.id as string, currentActiveCard?.columnId as string)
+    // await deleteCard(currentActiveCard?.id as string, currentActiveCard?.columnId as string)
+    await fetch(`/api/cards/${currentActiveCard?.id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ columnId: currentActiveCard?.columnId }),
+    })
+    
     const board = { ...currentActiveBoard }
     const column = board?.columns?.find(col => col.id === currentActiveCard?.columnId)
     if (column) {

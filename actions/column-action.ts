@@ -82,6 +82,8 @@ export async function updateColumn(columnId: string, updateData: Partial<Column>
         error: "Failed to updating board. Please try again.",
       };
     }
+
+    return { success: true };
     
   } catch (error) {
     console.error("Unexpected error updating board:", error);

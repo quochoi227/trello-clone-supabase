@@ -29,8 +29,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Trash2Icon } from "lucide-react"
-import { deleteColumn } from "@/actions/column-action";
-import { createCard } from "@/actions/card-actions";
 import { toast } from "sonner";
 import { generatePlaceholderCard } from "@/utils/formatters";
 
@@ -121,17 +119,57 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
     startTransition(() => {
       dispatchOptimisticCard({ type: "add", card: optimisticCard })
     })
+
+    const boardBeforeCreate = useBoardStore.getState().currentActiveBoard
+    if (boardBeforeCreate) {
+      const nextColumns = boardBeforeCreate.columns.map((boardColumn) => {
+        if (boardColumn.id !== column.id) return boardColumn
+
+        const baseCards = boardColumn.cards.filter((card) => !card.FE_PlaceholderCard)
+        const mergedCards = dedupeCardsById([...baseCards, optimisticCard])
+
+        return {
+          ...boardColumn,
+          cards: mergedCards,
+          cardOrderIds: mergedCards.map((card) => card.id),
+        }
+      })
+
+      setCurrentActiveBoard({
+        ...boardBeforeCreate,
+        columns: nextColumns,
+      } as typeof currentActiveBoard)
+    }
+
     setIsCreatingCard(true)
 
     toggleOpenNewCardForm()
     setNewCardTitle('')
 
     try {
-      const { success, error, data } = await createCard({
-        boardId,
-        columnId: column.id,
-        title,
+      // const { success, error, data } = await createCard({
+      //   boardId,
+      //   columnId: column.id,
+      //   title,
+      // })
+
+      const response = await fetch('/api/cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          boardId,
+          columnId: column.id,
+          title,
+        }),
       })
+
+      if (!response.ok) {
+        throw new Error("Failed to create card")
+      }
+
+      const { success, error, data } = await response.json()
 
       if (!success || !data) {
         throw new Error(error || "Create card failed")
@@ -176,6 +214,28 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
       startTransition(() => {
         dispatchOptimisticCard({ type: "remove", tempId })
       })
+
+      const latestBoard = useBoardStore.getState().currentActiveBoard
+      if (latestBoard) {
+        const nextColumns = latestBoard.columns.map((boardColumn) => {
+          if (boardColumn.id !== column.id) return boardColumn
+
+          const nextCards = boardColumn.cards.filter((card) => card.id !== tempId)
+          const fallbackCards = nextCards.length ? nextCards : [generatePlaceholderCard(boardColumn)]
+
+          return {
+            ...boardColumn,
+            cards: fallbackCards,
+            cardOrderIds: fallbackCards.map((card) => card.id),
+          }
+        })
+
+        setCurrentActiveBoard({
+          ...latestBoard,
+          columns: nextColumns,
+        } as typeof currentActiveBoard)
+      }
+
       toast.error(e instanceof Error ? e.message : "Failed to create card")
     } finally {
       setIsCreatingCard(false)
@@ -190,7 +250,14 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
     // setBoard(newBoard)
     setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
     // Gọi API
-    deleteColumn(column.id, currentActiveBoard?.id as string)
+    // deleteColumn(column.id, currentActiveBoard?.id as string)
+    fetch(`/api/columns/${column.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ boardId: currentActiveBoard?.id }),
+    })
   }
 
   const cardIds = useMemo(() => {

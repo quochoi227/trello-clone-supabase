@@ -27,7 +27,6 @@ import { cloneDeep, isEmpty } from "lodash";
 import { generatePlaceholderCard } from "@/utils/formatters";
 import { updateBoard } from "@/actions/board-actions";
 import { useBoardStore } from "@/stores/board-store";
-import { updateColumn } from "@/actions/column-action";
 import { ActivityWithUser } from "@/types/activity";
 
 export interface Card {
@@ -248,7 +247,14 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     // setCurrentActiveProject(newProject as Project)
     // Gọi API update Column
     // updateColumnDetailsAPI(columnId as UniqueIdentifier, { cardOrderIds: dndOrderedCardIds } as Column)
-    updateColumn(columnId as string, { card_order_ids: dndOrderedCardIds as string[] })
+    // updateColumn(columnId as string, { card_order_ids: dndOrderedCardIds as string[] })
+    fetch(`/api/columns/${columnId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ card_order_ids: dndOrderedCardIds }),
+    })
   }
 
   const moveColumns = (dndOrderedColumns: Column[]) => {
