@@ -45,6 +45,16 @@ import { Card } from "@/components/kanban"
 import { useEffect } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 // Mock data structure
 interface Label {
   id: string
@@ -217,9 +227,23 @@ export default function CardDetail() {
           <DialogTitle className="hidden"></DialogTitle>
           <DialogDescription className="hidden"></DialogDescription>
           <div className="w-full flex h-full items-start justify-end gap-2 pt-1.5 pr-12">
-            <Button variant="outline" size="icon" className="rounded-full">
-              <Image />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="rounded-full">
+                  <Image />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="p-3 pt-1 min-w-[300px]">
+                <DropdownMenuLabel className="text-center text-muted-foreground">Cover</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Attachments</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <Button variant="secondary" className="w-full">Upload a cover image</Button>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" size="icon" className="rounded-full">
               <Ellipsis />
             </Button>

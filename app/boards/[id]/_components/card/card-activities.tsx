@@ -99,11 +99,13 @@ function CardActivities({ cardData }: IProps) {
 
   const [newComment, setNewComment] = useState("")
   const [showCommentEditor, setShowCommentEditor] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleAddComment = async () => {
     if (newComment.trim()) {
       // Here you would add the comment to activities
       // Call action to add comment activity
+      setIsLoading(true)
       fetch('/api/activities', {
         method: 'POST',
         headers: {
@@ -119,6 +121,7 @@ function CardActivities({ cardData }: IProps) {
       .then(data => {
           setNewComment("")
           setShowCommentEditor(false)
+          setIsLoading(false)
           setCurrentActiveCard({
             ...currentActiveCard!,
             // Append new activity to activities list
@@ -153,8 +156,8 @@ function CardActivities({ cardData }: IProps) {
               className="min-h-[80px] text-sm"
             />
             <div className="flex gap-2">
-              <Button size="sm" onClick={handleAddComment}>
-                Save
+              <Button disabled={isLoading} size="sm" onClick={handleAddComment}>
+                {isLoading ? "Adding..." : "Add Comment"}
               </Button>
               <Button 
                 size="sm" 

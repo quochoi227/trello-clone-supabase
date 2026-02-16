@@ -260,6 +260,28 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
     })
   }
 
+  const handleChangeColumnTitle = (title: string) => {
+    fetch(`/api/columns/${column.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title }),
+    }).then(res => res.json())
+      .then(({ success, error }) => {
+        if (!success) {
+          toast.error(error || "Failed to update column title")
+          return
+        }
+        const newBoard = { ...currentActiveBoard }
+        const targetColumn = newBoard?.columns?.find((c) => c.id === column.id)
+        if (targetColumn) {
+          targetColumn.title = title
+          setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
+        }
+      })
+  }
+
   const cardIds = useMemo(() => {
     return optimisticCards?.map((card) => card.id) || []
   }, [optimisticCards])
@@ -268,7 +290,7 @@ export function KanbanColumn({ column }: KanbanColumnProps) {
     <div ref={setNodeRef} style={dndKitColumnStyles} className="h-full">
       <div {...attributes} className="flex flex-col w-[272px] bg-[#f1f2f4] dark:bg-slate-800 rounded-2xl">
         <div className="h-[52px] flex items-center gap-2 p-2 pb-1.5">
-          <ToggleFocusInput style={{ flex: 1 }} value={column.title} onChangedValue={(value) => {console.log(value)}} />
+          <ToggleFocusInput style={{ flex: 1 }} value={column.title} onChangedValue={handleChangeColumnTitle} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

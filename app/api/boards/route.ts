@@ -1,18 +1,17 @@
-import { createBoard, fetchUserBoards } from "@/actions/board-actions";
+import { createBoard, fetchBoardByQuery } from "@/actions/board-actions";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q") || "";
   try {
-    const { success, data, error } = await fetchUserBoards();
+    const { success, data, error } = await fetchBoardByQuery({ title: query });
     if (!success) {
-      return NextResponse.json({ error }, { status: 400 });
+      return new Response(JSON.stringify({ error }), { status: 400 });
     }
-    return NextResponse.json({ success: true, data });
+    return new Response(JSON.stringify({ success: true, data }), { status: 200 });
   } catch (error) {
-    return NextResponse.json(
-      { error },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error }), { status: 500 });
   }
 }
 

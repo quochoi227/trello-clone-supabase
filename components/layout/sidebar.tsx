@@ -26,17 +26,14 @@ const workspaces = [
   {
     id: "1",
     name: "Personal Workspace",
-    icon: "🏠",
   },
   {
     id: "2",
     name: "Team Project",
-    icon: "💼",
   },
   {
     id: "3",
     name: "Design Team",
-    icon: "🎨",
   },
 ];
 
@@ -109,9 +106,9 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-background py-3">
+    <div className="flex h-full w-[320px] flex-col bg-background p-8">
       <div className="flex-1 overflow-auto">
-        <div className="space-y-1 px-3 pb-2">
+        <div className="space-y-1">
           {mainNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -137,7 +134,7 @@ export function Sidebar() {
 
         <Separator className="my-4" />
 
-        <div className="px-3 pb-2">
+        <div>
           <h2 className="mb-2 px-2 text-sm font-semibold tracking-tight">
             Workspaces
           </h2>
@@ -153,7 +150,9 @@ export function Sidebar() {
                     variant="ghost"
                     className="w-full justify-start px-2"
                   >
-                    <span className="mr-2">{workspace.icon}</span>
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-b from-green-700 to-green-500 flex items-center justify-center text-xs text-white">
+                      {workspace.name.charAt(0).toUpperCase()}
+                    </div>
                     <span className="flex-1 text-left">{workspace.name}</span>
                     <ChevronDown
                       className={cn(

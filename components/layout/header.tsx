@@ -1,8 +1,7 @@
 "use client";
 
-import { Search, HelpCircle, Menu } from "lucide-react";
+import { HelpCircle, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CreateBoardMenu } from "@/components/boards/create-board-menu";
 import {
@@ -19,61 +18,65 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ThemeSwitcher } from "../theme-switcher";
 import Invitations from "../invitations/invitations";
+import { useEffect, useState } from "react";
+import { AuthSession } from "@supabase/supabase-js";
+import BoardSearch from "../board-search";
 // import { useBoardInvitationsRealtime } from "@/hooks/useBoardInvitationRealtime";
-
 
 export function Header() {
   const router = useRouter();
-  
+  const [session, setSession] = useState<AuthSession | null>(null);
+
   const logout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/auth/login");
   };
 
-  
+  const fetchSession = async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+  }
+
+  useEffect(() => {
+    fetchSession()
+
+    const {data: { subscription }} = createClient().auth.onAuthStateChange((event, session) => {
+      console.log("Session changed:", { event, session });
+      setSession(session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    }
+  }, [])
 
   return (
     <header className="z-50 w-full border-b">
       <div className="flex h-12 items-center justify-between gap-2 px-3">
         {/* Left Section */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center">
           <Button
             variant="ghost"
+            className="h-8 gap-2 px-2"
             size="icon"
-            className="h-8 w-8"
           >
-            <Menu className="h-4 w-4" />
+            <LayoutGrid />
           </Button>
 
           <Link href="/">
-            <Button
-              variant="ghost"
-              className="h-8 gap-2 px-2"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5"
-                fill="currentColor"
-              >
-                <rect x="2" y="2" width="8" height="8" rx="1" />
-                <rect x="14" y="2" width="8" height="8" rx="1" />
-                <rect x="2" y="14" width="8" height="8" rx="1" />
-                <rect x="14" y="14" width="8" height="8" rx="1" />
-              </svg>
-              <span className="font-semibold">Trello</span>
-            </Button>
+            <div className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted transition-colors">
+              <svg fill="#fff" width="26px" height="26px" viewBox="-100 -100 1200.00 1200.00" xmlns="http://www.w3.org/2000/svg" stroke="#fff" strokeWidth="0.01"><g id="SVGRepo_bgCarrier" strokeWidth="0" transform="translate(0,0), scale(1)"><rect x="-100" y="-100" width="1200.00" height="1200.00" rx="240" fill="#1f5ca9" strokeWidth="0"></rect></g><g id="SVGRepo_tracerCarrier" strokeLinecap="round" strokeLinejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M331 650q88 54 170 61v-53q-30 4-60 4-55 0-110-12zm326 22q48-36 56-99-27 19-56 34v65zM500 70q-117 0-217 59-97 57-154 154-59 100-59 217t59 217q57 97 154 154 100 59 217 59t217-59q97-57 154-154 59-100 59-217t-59-217q-57-97-154-154-100-59-217-59zm59 278l153-88q8-4 17-2t13.5 10.5T745 286t-11 14l-68 39q21 11 30 32.5t1.5 43.5-27 34-42.5 8.5-38.5-21.5-15.5-41l1-5q-9 2-16-2t-10-12 0-15.5 10-12.5zm-302-79q5-9 14-11t17 2l153 88q7 5 10 13.5t-1 16.5-12.5 11-16.5 0v6q0 23-15 41t-38.5 21.5T324 448t-26.5-35.5 3-43.5 31.5-31l-67-39q-8-4-10-13t2-17zm338 470q-34 8-70 8-71 0-146-32-54-24-105-61-27-20-43-36l19-28q26 10 60 19 68 18 131 18 32 0 62-5 82-12 157-56 37-23 58-43l30 10q1 9 0 27-1 32-12 61-14 40-44 68-37 35-97 50zm-6-35q24-6 46-17v-69q-22 11-46 19v67zm-66 8h2q21 0 41-3v-65q-22 6-43 10v58z"></path></g></svg>
+              {/* <Trello /> */}
+              <span className="font-semibold">Fellow</span>
+            </div>
           </Link>
         </div>
 
         {/* Center Section - Search */}
-        <div className="relative flex items-center gap-2 flex-1 max-w-xl">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-          <Input
-            type="search"
-            placeholder="Search"
-            className="h-8 w-full pl-9 pr-4 text-sm"
-          />
+        <div className="flex items-center gap-2 flex-1 max-w-xl">
+          <BoardSearch />
           <CreateBoardMenu>
             <Button
               variant="default"
@@ -102,7 +105,7 @@ export function Header() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-                <AvatarImage src="" alt="User" />
+                <AvatarImage src={session?.user?.user_metadata?.avatar_url} alt="User" />
                 <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-xs font-semibold text-white">
                   QH
                 </AvatarFallback>
@@ -115,14 +118,14 @@ export function Header() {
               {/* Account Section */}
               <div className="flex items-center gap-3 p-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="" alt="User" />
+                  <AvatarImage src={session?.user?.user_metadata?.avatar_url} alt="User" />
                   <AvatarFallback className="bg-gradient-to-br from-teal-500 to-blue-500 text-xs font-semibold text-white">
                     QH
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
-                  <span className="font-semibold text-sm">Quốc Hội</span>
-                  <span className="text-xs text-muted-foreground">quochoilam2207@gmail.com</span>
+                  <span className="font-semibold text-sm">{session?.user?.user_metadata?.full_name}</span>
+                  <span className="text-xs text-muted-foreground">{session?.user?.user_metadata?.email}</span>
                 </div>
               </div>
 

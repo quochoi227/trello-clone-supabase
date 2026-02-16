@@ -178,6 +178,7 @@ export function CreateBoardMenu({ children }: CreateBoardMenuProps) {
                   Board title <span className="text-destructive">*</span>
                 </Label>
                 <Input
+                  autoFocus
                   id="board-title"
                   value={boardTitle}
                   onChange={(e) => {

@@ -46,6 +46,30 @@ export async function fetchUserBoards(): Promise<ActionResponse<Board[]>> {
   return { success: true, data: data || [] };
 }
 
+export async function fetchBoardByQuery(query: Partial<Board>): Promise<ActionResponse<Board[]>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return {
+      success: false,
+      error: "You must be logged in to search boards",
+    };
+  }
+  const { data, error } = await supabase
+    .from("boards")
+    .select("*")
+    .or(`owner_ids.cs.{${user.id}},member_ids.cs.{${user.id}}`)
+    .ilike("title", `%${query.title || ""}%`);
+  if (error) {
+    console.error("Error searching boards:", error);
+    return { success: false, error: error.message };
+  }
+  return { success: true, data: data || [] };
+}
+
 export async function getBoardWithDetails(boardId: string) {
   const supabase = await createClient();
 
