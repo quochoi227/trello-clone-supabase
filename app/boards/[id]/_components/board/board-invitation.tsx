@@ -8,13 +8,15 @@ import { Input } from "@/components/ui/input";
 import { useBoardStore } from "@/stores/board-store";
 import { Button } from "@/components/ui/button";
 import { Users } from "lucide-react";
+import { toast } from "sonner";
 
 function BoardInvitation() {
   const { currentActiveBoard } = useBoardStore()
   const [inviteeEmail, setInviteeEmail] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleInvite = () => {
-    console.log("Invitee Email:", inviteeEmail);
+    setLoading(true);
     // sendBoardInvitation({ boardId: currentActiveBoard?.id as string, email: inviteeEmail })
     fetch("/api/invitations", {
       method: "POST",
@@ -25,6 +27,11 @@ function BoardInvitation() {
         boardId: currentActiveBoard?.id,
         email: inviteeEmail,
       }),
+    }).then(() => {
+      toast.success("Invitation sent successfully!")
+    }).finally(() => {
+      setLoading(false);
+      setInviteeEmail("");
     })
   }
 
@@ -54,7 +61,7 @@ function BoardInvitation() {
                   placeholder="add email address"
                 />
               </div>
-              <Button onClick={handleInvite} disabled={!inviteeEmail.trim()}>Send Invite</Button>
+              <Button onClick={handleInvite} disabled={!inviteeEmail.trim() || loading}>Send Invite</Button>
             </div>
           </div>
         </PopoverContent>

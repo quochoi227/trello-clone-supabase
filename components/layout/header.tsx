@@ -43,7 +43,6 @@ export function Header() {
     fetchSession()
 
     const {data: { subscription }} = createClient().auth.onAuthStateChange((event, session) => {
-      console.log("Session changed:", { event, session });
       setSession(session);
     });
 

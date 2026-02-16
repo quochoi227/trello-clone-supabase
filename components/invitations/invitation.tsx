@@ -10,9 +10,9 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { declineBoardInvitation } from "@/actions/board-invitation-actions"
 import { InvitationWithDetails } from "@/types/invitation"
 import { Check, Clock3, X } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface InvitationProps {
   invitation: InvitationWithDetails
@@ -22,6 +22,7 @@ interface InvitationProps {
 export function Invitation({ invitation, onResponse }: InvitationProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [status, setStatus] = useState<InvitationWithDetails["status"]>(invitation.status)
+  const router = useRouter()
 
   const handleAccept = async () => {
     setIsLoading(true)
@@ -30,6 +31,10 @@ export function Invitation({ invitation, onResponse }: InvitationProps) {
         method: 'PUT',
         }
       )
+      // Kiểm tra nếu đang ở /boards thì gọi router.refresh() để cập nhật lại danh sách board, nếu không thì chỉ cần cập nhật trạng thái của invitation hiện tại.
+      if (window.location.pathname === "/boards") {
+        router.refresh()
+      }
       setStatus("accepted")
       onResponse?.("accepted")
     } catch (error) {
@@ -42,7 +47,11 @@ export function Invitation({ invitation, onResponse }: InvitationProps) {
   const handleDecline = async () => {
     setIsLoading(true)
     try {
-      await declineBoardInvitation({ invitationId: invitation.id })
+      // await declineBoardInvitation({ invitationId: invitation.id })
+      await fetch('/api/invitations/' + invitation.id + '/decline', {
+        method: 'PUT',
+        }
+      )
       setStatus("declined")
       onResponse?.("declined")
     } catch (error) {

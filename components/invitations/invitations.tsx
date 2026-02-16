@@ -13,6 +13,7 @@ import {
 import { Button } from "../ui/button";
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/lib/supabase/client";
 
 function Invitations() {
   const [invitations, setInvitations] = useState<InvitationWithDetails[]>([]);
@@ -74,6 +75,37 @@ function Invitations() {
     );
   };
 
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Lấy thông tin user hiện tại để lọc lời mời chỉ dành cho email của user đó
+    let currentUserEmail: string | null = null;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      currentUserEmail = user?.email || null;
+    });
+
+
+    const channel = supabase
+      .channel("board-invitations")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "board_invitations" },
+        (payload) => {
+          const newInvitation = payload.new as InvitationWithDetails;
+          // Kiểm tra nếu lời mời mới có invitee_email trùng với email của user hiện tại thì gọi callback
+          if (newInvitation.invitee_email === currentUserEmail) {
+            setInvitations((prev) => [newInvitation, ...prev]);
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup function để hủy subscription khi component unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -101,7 +133,7 @@ function Invitations() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        <div className="max-h-[420px] overflow-y-auto p-3 space-y-2">
+        <div className="max-h-[420px] scrollbar-custom overflow-y-auto p-3 space-y-2">
           {isLoading ? (
             <div className="p-4 text-sm text-muted-foreground">Loading invitations...</div>
           ) : error ? (

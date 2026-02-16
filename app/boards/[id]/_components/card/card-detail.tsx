@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 
 
 import { 
@@ -20,7 +19,7 @@ import {
   MessageSquare,
   Trash,
   Trash2Icon,
-  Image,
+  ImageIcon,
   Ellipsis,
 } from "lucide-react"
 import { useCardStore } from "@/stores/card-store"
@@ -42,8 +41,9 @@ import {
 import CardActivities from "./card-activities"
 import CardDescription from "./card-description"
 import { Card } from "@/components/kanban"
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "sonner"
 
 import {
   DropdownMenu,
@@ -54,6 +54,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 // Mock data structure
 interface Label {
@@ -169,6 +170,8 @@ const mockCardData: CardData = {
 export default function CardDetail() {
   const { currentActiveCard, setCurrentActiveCard, subscribeToActivity } = useCardStore()
   const { currentActiveBoard, setCurrentActiveBoard, updateCardInBoard } = useBoardStore()  
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const coverFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleOpenChanege = (isOpen: boolean) => {
     if (!isOpen) {
@@ -188,8 +191,46 @@ export default function CardDetail() {
 
     const updateResult = await response.json()
     
-    if (updateResult) {
+    if (updateResult?.success && updateResult?.data) {
       updateCardInBoard(updateResult.data)
+      if (currentActiveCard) {
+        setCurrentActiveCard({ ...currentActiveCard, ...updateResult.data })
+      }
+    }
+  }
+
+  const handleOpenCoverUpload = () => {
+    coverFileInputRef.current?.click()
+  }
+
+  const handleChangeCardCover = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0]
+    if (!selectedFile || !currentActiveCard?.id) return
+
+    try {
+      setIsUploadingCover(true)
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+
+      const response = await fetch(`/api/cards/${currentActiveCard.id}/cover`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result?.success || !result?.data) {
+        throw new Error(result?.error || "Upload cover failed")
+      }
+
+      updateCardInBoard(result.data)
+      setCurrentActiveCard({ ...currentActiveCard, ...result.data })
+      toast.success("Upload cover thành công")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể upload cover")
+    } finally {
+      setIsUploadingCover(false)
+      event.target.value = ""
     }
   }
 
@@ -218,19 +259,36 @@ export default function CardDetail() {
       // Subscribe to card updates
       subscribeToActivity(currentActiveCard.id as string)
     }
-  }, [currentActiveCard?.id, subscribeToActivity])
+  }, [currentActiveCard, subscribeToActivity])
 
   return (
     <Dialog open={!!currentActiveCard} onOpenChange={handleOpenChanege}>
       <DialogContent className="sm:max-w-5xl p-0 gap-0">
-        <DialogHeader className="border-b border-slate-200 min-h-12">
+        <DialogHeader className={cn("border-b border-slate-200", currentActiveCard?.cover ? "h-36" : "h-12")}>
           <DialogTitle className="hidden"></DialogTitle>
           <DialogDescription className="hidden"></DialogDescription>
-          <div className="w-full flex h-full items-start justify-end gap-2 pt-1.5 pr-12">
+          <div className="relative w-full flex h-full items-start justify-end gap-2 pt-1.5 pr-12">
+            {currentActiveCard?.cover && (
+              <div className="absolute -z-10 left-0 top-0 w-full h-full rounded-md overflow-hidden border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={currentActiveCard.cover}
+                  alt={currentActiveCard.title || "Card cover"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <input
+              ref={coverFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleChangeCardCover}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="rounded-full">
-                  <Image />
+                  <ImageIcon />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="p-3 pt-1 min-w-[300px]">
@@ -238,8 +296,16 @@ export default function CardDetail() {
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Attachments</DropdownMenuLabel>
-                  <DropdownMenuItem asChild>
-                    <Button variant="secondary" className="w-full">Upload a cover image</Button>
+                  <DropdownMenuItem asChild onSelect={(event) => event.preventDefault()}>
+                    <Button
+                      variant="secondary"
+                      className="w-full cursor-pointer"
+                      type="button"
+                      onClick={handleOpenCoverUpload}
+                      disabled={isUploadingCover || !currentActiveCard?.id}
+                    >
+                      {isUploadingCover ? "Uploading..." : "Upload a cover image"}
+                    </Button>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
