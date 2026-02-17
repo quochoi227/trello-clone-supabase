@@ -56,7 +56,7 @@ const mainNavItems: NavItem[] = [
   },
   {
     title: "Home",
-    href: "/",
+    href: "/home",
     icon: Home,
   },
 ];
