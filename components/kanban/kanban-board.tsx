@@ -126,6 +126,7 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
     activeDraggingCardData: Card,
     triggerFrom: 'handleDragOver' | 'handleDragEnd'
   ): void => {
+    console.log("moveCardBetweenDifferentColumns triggered")
     let nextColumns: Column[] = []
     if (overColumn.cards[0]?.FE_PlaceholderCard) {
       // Remove placeholder card nếu có
@@ -237,12 +238,13 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
      * Trường hợp Immutability ở đây đã đụng tới giá trị cards đang được coi là chỉ đọc - read only (nested object)
      */
     // const newBoard = { ...board }
-    const newProject = cloneDeep(board)
-    const columnToUpdate = newProject?.columns.find((column: Column) => column.id === columnId)
+    const newBoard = cloneDeep(board)
+    const columnToUpdate = newBoard?.columns.find((column: Column) => column.id === columnId)
     if (columnToUpdate) {
       columnToUpdate.cards = dndOrderedCards as Card[]
       columnToUpdate.cardOrderIds = dndOrderedCardIds as string[]
     }
+    setCurrentActiveBoard(newBoard as typeof currentActiveBoard)
     // setBoard(newBoard)
     // setCurrentActiveProject(newProject as Project)
     // Gọi API update Column

@@ -1,22 +1,13 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache";
+import { getServerClientAndUser } from "@/lib/supabase/server-auth";
 
 export async function sendBoardInvitation({ boardId, email }: { boardId: string; email: string }) {
-  const supabase = await createClient()
+  const auth = await getServerClientAndUser();
+  if ("success" in auth && auth.success === false) return auth;
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return {
-      success: false,
-      error: "You must be logged in to create a board",
-    };
-  }
+  const { supabase, user } = auth;
 
   const { data, error } = await supabase
     .from("board_invitations")
@@ -30,125 +21,91 @@ export async function sendBoardInvitation({ boardId, email }: { boardId: string;
   if (error) {
     throw new Error(error.message)
   }
-  console.log("Invitation sent:", data)
+
   return data
 }
 
 export async function fetchBoardInvitations() {
-  const supabase = await createClient()
+  const auth = await getServerClientAndUser();
+  if ("success" in auth && auth.success === false) return auth;
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return {
-      success: false,
-      error: "You must be logged in to create a board",
-    };
-  }
+  const { supabase, user } = auth;
 
   const { data, error } = await supabase
     .from("board_invitations")
     .select(`
-      *,
+      id,
+      board_id,
+      invitee_email,
+      inviter_id,
+      status,
+      created_at,
       board:board_id (
         id,
         title
       )
     `)
     .eq("invitee_email", user.email)
-    .order("created_at", { ascending: false })
-    
-  if (error) {
-    throw new Error(error.message)
-  }
-  return data
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return { success: true, data };
 }
 
 export async function acceptBoardInvitation({ invitationId }: { invitationId: string }) {
-  const supabase = await createClient()
+  const auth = await getServerClientAndUser();
+  if ("success" in auth && auth.success === false) return auth;
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { supabase, user } = auth;
 
-  if (authError || !user) {
-    return {
-      success: false,
-      error: "You must be logged in",
-    };
-  }
-
-  // Cập nhật status invitation
   const { data: invitation, error: invitationError } = await supabase
     .from("board_invitations")
-    .update({ status: 'accepted' })
+    .update({ status: "accepted" })
     .eq("id", invitationId)
     .eq("invitee_email", user.email)
-    .select()
-    .single()
+    .select("id, board_id, status")
+    .single();
 
-  if (invitationError) {
-    throw new Error(invitationError.message)
-  }
+  if (invitationError) throw new Error(invitationError.message);
 
-  // Thêm user id vào mảng memberIds của board
-  if (invitation?.board_id && user.id) {
-    // Lấy memberIds hiện tại
+  if (invitation?.board_id) {
     const { data: board, error: boardError } = await supabase
       .from("boards")
-      .select()
+      .select("id, member_ids")
       .eq("id", invitation.board_id)
-      .single()
-    if (boardError) {
-      throw new Error(boardError.message)
-    }
+      .single();
+
+    if (boardError) throw new Error(boardError.message);
+
     const memberIds: string[] = board?.member_ids || [];
-    // Thêm user nếu chưa có
     if (!memberIds.includes(user.id)) {
-      const newMemberIds = [...memberIds, user.id];
       const { error: updateError } = await supabase
         .from("boards")
-        .update({ member_ids: newMemberIds })
+        .update({ member_ids: [...memberIds, user.id] })
         .eq("id", invitation.board_id);
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
+
+      if (updateError) throw new Error(updateError.message);
     }
   }
-  revalidatePath("/boards")
-  return { success: true, data: invitation }
+
+  revalidatePath("/boards");
+  return { success: true, data: invitation };
 }
 
 export async function declineBoardInvitation({ invitationId }: { invitationId: string }) {
-  const supabase = await createClient()
+  const auth = await getServerClientAndUser();
+  if ("success" in auth && auth.success === false) return auth;
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return {
-      success: false,
-      error: "You must be logged in",
-    };
-  }
+  const { supabase, user } = auth;
 
   const { data, error } = await supabase
     .from("board_invitations")
-    .update({ status: 'declined' })
+    .update({ status: "declined" })
     .eq("id", invitationId)
     .eq("invitee_email", user.email)
-    .select()
-    .single()
+    .select("id, board_id, status")
+    .single();
 
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return { success: true, data }
+  if (error) throw new Error(error.message);
+  return { success: true, data };
 }
