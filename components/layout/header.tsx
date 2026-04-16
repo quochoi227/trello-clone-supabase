@@ -42,7 +42,8 @@ export function Header() {
   useEffect(() => {
     fetchSession()
 
-    const {data: { subscription }} = createClient().auth.onAuthStateChange((event, session) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const {data: { subscription }} = createClient().auth.onAuthStateChange((event: any, session: any) => {
       setSession(session);
     });
 

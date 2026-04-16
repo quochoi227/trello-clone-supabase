@@ -80,7 +80,8 @@ function Invitations() {
 
     // Lấy thông tin user hiện tại để lọc lời mời chỉ dành cho email của user đó
     let currentUserEmail: string | null = null;
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
       currentUserEmail = user?.email || null;
     });
 
@@ -90,7 +91,8 @@ function Invitations() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "board_invitations" },
-        (payload) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (payload: any) => {
           const newInvitation = payload.new as InvitationWithDetails;
           // Kiểm tra nếu lời mời mới có invitee_email trùng với email của user hiện tại thì gọi callback
           if (newInvitation.invitee_email === currentUserEmail) {
