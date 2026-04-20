@@ -85,24 +85,33 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
             return;
           }
         
-          // Cập nhật tất cả các thuộc tính của board
           const board = get().currentActiveBoard;
-          Object.assign(board!, newRecord);
-          if (board && board.columnOrderIds.length === newRecord.column_order_ids?.length && JSON.stringify(board.columnOrderIds) !== JSON.stringify(newRecord.column_order_ids)) {
+          if (!board) return;
+
+          const nextColumnOrderIds = newRecord.column_order_ids ?? board.columnOrderIds;
+
+          const shouldReorderColumns =
+            board.columnOrderIds.length === nextColumnOrderIds.length &&
+            JSON.stringify(board.columnOrderIds) !== JSON.stringify(nextColumnOrderIds);
+
+          let nextColumns = board.columns;
+          if (shouldReorderColumns) {
             console.log("case 1: column_order_ids changed order");
-            board.columns = mapOrder(
+            nextColumns = mapOrder(
               board.columns,
-              newRecord.column_order_ids,
+              nextColumnOrderIds,
               'id'
             );
-            set((state) => ({
-              currentActiveBoard: {
-                ...state.currentActiveBoard!,
-                columns: board.columns,
-                columnOrderIds: newRecord.column_order_ids,
-              } as typeof state.currentActiveBoard,
-            }));
           }
+
+          set((state) => ({
+            currentActiveBoard: {
+              ...state.currentActiveBoard!,
+              ...newRecord,
+              columns: nextColumns,
+              columnOrderIds: nextColumnOrderIds,
+            } as typeof state.currentActiveBoard,
+          }));
         })
       .subscribe();
     set({ boardChannel: channel });
@@ -229,6 +238,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   unsubscribeFromColumn: () => {
     const channel = get().columnChannel;
     if (channel) {
+      channel.unsubscribe();
       // Implement unsubscription logic here
       set({ columnChannel: null });
     }
@@ -434,8 +444,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     unsubscribeFromCard: () => {
       const channel = get().cardChannel
       if (channel) {
-        channel.unsubscribe()
-        set({ cardChannel: null })
+        channel.unsubscribe();
+        set({ cardChannel: null });
       }
     },
 }))
