@@ -2,13 +2,28 @@
 
 import type { ActivityWithUser } from "@/types/activity";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Helper: fetch user info by ID using admin client
+async function getUserById(userId: string) {
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient.auth.admin.getUserById(userId);
+  if (error || !data?.user) return null;
+  const u = data.user;
+  return {
+    id: u.id,
+    email: u.email || "",
+    name: (u.user_metadata?.name as string) || u.email || "Unknown",
+    avatar: (u.user_metadata?.avatar_url as string) || "",
+  };
+}
 
 export async function fetchCardActivities(cardId: string): Promise<ActivityWithUser[]> {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    throw new Error("You must be logged in to add an activity");
+    throw new Error("You must be logged in to view activities");
   }
   
   const { data, error } = await supabase
@@ -30,21 +45,30 @@ export async function fetchCardActivities(cardId: string): Promise<ActivityWithU
     return [];
   }
 
-  // Transform data - không cần filter(Boolean)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const activitiesWithUser = data?.map(activity => {
-    return {
-      ...activity,
-      user: user ? {
-        id: user.id,
-        email: user.email || "",
-        name: user.user_metadata?.name || "Unknown",
-        avatar: user.user_metadata?.avatar_url || ""
-      } : null
-    };
-  }) || [];
+  if (!data || data.length === 0) return [];
 
-  return activitiesWithUser as ActivityWithUser[];
+  // Batch-fetch unique users to avoid N+1 queries
+  const uniqueUserIds = [...new Set(data.map((a) => a.user_id))];
+  const userMap = new Map<string, { id: string; email: string; name: string; avatar: string }>();
+
+  await Promise.all(
+    uniqueUserIds.map(async (uid) => {
+      const userInfo = await getUserById(uid);
+      if (userInfo) userMap.set(uid, userInfo);
+    })
+  );
+
+  const activitiesWithUser: ActivityWithUser[] = data.map((activity) => ({
+    ...activity,
+    user: userMap.get(activity.user_id) ?? {
+      id: activity.user_id,
+      email: "Unknown",
+      name: "Unknown",
+      avatar: "",
+    },
+  }));
+
+  return activitiesWithUser;
 }
 
 export async function addCardActivity(
@@ -75,15 +99,15 @@ export async function addCardActivity(
     throw new Error("Failed to add activity");
   }
 
-  // Transform data để match ActivityWithUser type
+  // Use the current user's own info (they are the one adding the activity)
   const activityWithUser: ActivityWithUser = {
     ...resData,
     user: {
       id: user.id,
       email: user.email || "",
-      name: user.user_metadata?.name || "Unknown",
-      avatar: user.user_metadata?.avatar_url || ""
-    }
+      name: (user.user_metadata?.name as string) || user.email || "Unknown",
+      avatar: (user.user_metadata?.avatar_url as string) || "",
+    },
   };
 
   return { success: true, data: activityWithUser };
@@ -95,7 +119,7 @@ export const fetchActivityDetail = async (activityId: string) => {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    throw new Error("You must be logged in to add an activity");
+    throw new Error("You must be logged in to view an activity");
   }
 
   const { data, error } = await supabase
@@ -103,20 +127,24 @@ export const fetchActivityDetail = async (activityId: string) => {
     .select("*")
     .eq("id", activityId)
     .single();
+
   if (error) {
     console.error("Error fetching activity detail:", error);
     return null;
   }
 
+  // Fetch the actual owner of this activity
+  const activityUser = await getUserById(data.user_id);
+
   console.log("Fetched activity detail:", data);
   return {
     ...data,
-    user: user ? {
-      id: user.id,
-      email: user.email || "",
-      name: user.user_metadata?.name || "Unknown",
-      avatar: user.user_metadata?.avatar_url || ""
-    } : null
+    user: activityUser ?? {
+      id: data.user_id,
+      email: "Unknown",
+      name: "Unknown",
+      avatar: "",
+    },
   };
 }
 
@@ -136,18 +164,23 @@ export const updateActivity = async (
     .eq("id", activityId)
     .select()
     .single();
+
   if (error) {
     console.error("Error updating activity:", error);
     return { success: false, error: "Failed to update activity" };
   }
+
+  // Fetch the actual owner of this activity
+  const activityUser = await getUserById(data.user_id);
+
   return { success: true, data: {
     ...data,
-    user: {
-      id: user.id,
-      email: user.email || "",
-      name: user.user_metadata?.name || "Unknown",
-      avatar: user.user_metadata?.avatar_url || ""
-    }
+    user: activityUser ?? {
+      id: data.user_id,
+      email: "Unknown",
+      name: "Unknown",
+      avatar: "",
+    },
   } as ActivityWithUser };
 }
 

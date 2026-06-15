@@ -328,7 +328,10 @@ export function KanbanBoard({ initialData }: KanbanBoardProps) {
         prevColumnId: prevColumnId as string,
         prevCardOrderIds: clonedPrevCardOrderIds as string[],
         nextColumnId: nextColumnId as string,
-        nextCardOrderIds: clonedNextCardOrderIds as string[]
+        nextCardOrderIds: clonedNextCardOrderIds as string[],
+        boardId: currentActiveBoard?.id,
+        fromColumnTitle: currentActiveBoard?.columns.find(c => c.id === prevColumnId)?.title,
+        toColumnTitle: dndOrderedColumns.find(c => c.id === nextColumnId)?.title,
       })
     })
   }

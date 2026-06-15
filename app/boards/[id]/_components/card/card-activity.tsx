@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useCardStore } from "@/stores/card-store"
 import { ActivityWithUser } from "@/types/activity"
+import { createClient } from "@/lib/supabase/client"
 import { Dot } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Popover,
   PopoverContent,
@@ -16,11 +17,22 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
   const userName = activity.user?.name || "Unknown User"
   const email = activity.user?.email || ""
   const userAvatar = activity.user?.avatar
-  
+
   const [newComment, setNewComment] = useState(activity.data?.content || "")
   const [showCommentEditor, setShowCommentEditor] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const { setCurrentActiveCard, currentActiveCard } = useCardStore()
+
+  useEffect(() => {
+    ; (async () => {
+      const supabase = createClient()
+      const { data } = await supabase.auth.getUser()
+      setCurrentUserId(data.user?.id ?? null)
+    })()
+  }, [])
+
+  const isOwner = currentUserId !== null && currentUserId === activity.user_id
 
   // Get initials from name
   const initials = userName
@@ -43,40 +55,55 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
     if (diffMins < 60) return `${diffMins}m ago`
     if (diffHours < 24) return `${diffHours}h ago`
     if (diffDays < 7) return `${diffDays}d ago`
-    
+
     return date.toLocaleDateString()
   }
 
-  const handleEditComment = () => {
-    // Handle comment edit logic here
-    fetch('/api/activities/' + activity.id, {
+  const handleEditComment = async () => {
+    const trimmed = newComment.trim()
+    if (!trimmed) return
+
+    // 1. Update the existing comment_added activity content
+    const res = await fetch('/api/activities/' + activity.id, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { content: trimmed } })
+    })
+    const updated = await res.json()
+
+    setShowCommentEditor(false)
+    setCurrentActiveCard({
+      ...currentActiveCard!,
+      activities: currentActiveCard!.activities!.map(act =>
+        act.id === activity.id ? { ...act, data: updated.data } : act
+      )
+    } as Card)
+
+    // 2. Log a comment_edited activity entry
+    fetch('/api/activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        data: { content: newComment.trim() }
+        cardId: activity.card_id,
+        boardId: activity.board_id,
+        actionType: 'comment_edited',
+        data: { content: trimmed }
       })
     })
-    .then(res => res.json())
-    .then((data) => {
-        setShowCommentEditor(false)
-        setCurrentActiveCard({
-          ...currentActiveCard!,
-          activities: currentActiveCard!.activities!.map(act =>
-            act.id === activity.id ? { ...act, data: data.data } : act
-          )
-        } as Card)
-      })
+    // const newActivity = await editRes.json()
+
+    // setCurrentActiveCard({
+    //   ...currentActiveCard!,
+    //   activities: [newActivity, ...(currentActiveCard!.activities ?? [])]
+    // } as Card)
   }
 
   const handleDeleteComment = () => {
-    // Handle comment delete logic here
     fetch('/api/activities/' + activity.id, {
       method: 'DELETE',
     })
-    .then(res => res.json())
-    .then(() => {
+      .then(res => res.json())
+      .then(() => {
         setCurrentActiveCard({
           ...currentActiveCard!,
           activities: currentActiveCard!.activities!.filter(act => act.id !== activity.id)
@@ -92,7 +119,7 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
           {initials}
         </AvatarFallback>
       </Avatar>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="font-semibold text-sm text-foreground">
@@ -102,7 +129,7 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
             {formatTime(activity.created_at)}
           </span>
         </div>
-        
+
         <div className="text-sm text-foreground mt-1 break-words">
           {activity.action_type === "comment_added" && (
             !showCommentEditor ? (
@@ -112,24 +139,26 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
                 >
                   {activity.data?.content}
                 </div>
-                <div className="text-xs flex mt-1">
-                  <span onClick={() => setShowCommentEditor(true)} className="underline cursor-pointer">Edit</span>
-                  <Dot size={16} />
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <span className="underline cursor-pointer">Delete</span>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="p-3">
-                      <div className="flex flex-col gap-2">
-                        <div className="text-center font-semibold text-muted-foreground">Delete comment?</div>
-                        <p className="text-muted-foreground text-sm">
-                          Deleting a comment is forever. There is no undo.
-                        </p>
-                        <Button onClick={handleDeleteComment} variant="destructive" className="w-full">Delete comment</Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                {isOwner && (
+                  <div className="text-xs flex mt-1">
+                    <span onClick={() => setShowCommentEditor(true)} className="underline cursor-pointer">Edit</span>
+                    <Dot size={16} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <span className="underline cursor-pointer">Delete</span>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="p-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="text-center font-semibold text-muted-foreground">Delete comment?</div>
+                          <p className="text-muted-foreground text-sm">
+                            Deleting a comment is forever. There is no undo.
+                          </p>
+                          <Button onClick={handleDeleteComment} variant="destructive" className="w-full">Delete comment</Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -144,11 +173,11 @@ function CardActivity({ activity }: { activity: ActivityWithUser }) {
                   <Button size="sm" onClick={handleEditComment}>
                     Save
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="ghost"
                     onClick={() => {
-                      setNewComment("")
+                      setNewComment(activity.data?.content || "")
                       setShowCommentEditor(false)
                     }}
                   >

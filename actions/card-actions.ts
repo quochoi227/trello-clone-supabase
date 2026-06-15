@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/kanban";
 import { createClient } from "@/lib/supabase/server";
+import { addCardActivity } from "@/actions/activity-actions";
 
 export async function createCard({
   boardId,
@@ -44,6 +45,10 @@ interface IPropsMoveCardDifferentColumn {
   prevCardOrderIds: string[];
   nextColumnId: string;
   nextCardOrderIds: string[];
+  // Optional: for activity logging
+  boardId?: string;
+  fromColumnTitle?: string;
+  toColumnTitle?: string;
 }
 
 export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCardDifferentColumn) {
@@ -91,6 +96,25 @@ export async function moveCardToDifferentColumnAction(updateData: IPropsMoveCard
       .eq("id", updateData.currentCardId);
 
     await Promise.all([res1, res2, res3]);
+
+    // Log card_moved activity if we have the needed info
+    if (updateData.boardId && updateData.fromColumnTitle && updateData.toColumnTitle) {
+      try {
+        await addCardActivity(
+          updateData.currentCardId,
+          updateData.boardId,
+          'card_moved',
+          {
+            fromColumn: updateData.fromColumnTitle,
+            toColumn: updateData.toColumnTitle,
+          }
+        );
+      } catch (activityError) {
+        // Don't fail the move if activity logging fails
+        console.error("Failed to log card_moved activity:", activityError);
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Unexpected error updating board:", error);
